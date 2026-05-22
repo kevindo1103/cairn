@@ -1,0 +1,101 @@
+name: PR Quality Gate
+
+# Cairn framework — CI quality gate (C-6 Tier-1 enforcement).
+#
+# Runs on every PR into main/staging. Blocks merge when a check fails.
+# Compliance-independent: catches a bad outcome regardless of whether an
+# agent read or followed the rules — this is what makes Cairn "đủ", not
+# just "cần thiết" (see CAIRN_CONCEPTS.md §C-6).
+#
+# ── CUSTOMIZE PER PROJECT ────────────────────────────────────────────────
+# Find-replace every "{{PLACEHOLDER}}" with your stack's real value, then
+# remove the surrounding quotes only where the result needs to be unquoted.
+# Delete the `frontend` or `backend` job if your project has only one.
+# The STEP INTENT (the WHY comments) is the Cairn-portable part — keep the
+# intent, swap the command. Two intents are non-negotiable (explained inline):
+#   1. a build/compile step  — catches unresolved imports lint misses
+#   2. an app-load step      — catches cross-module ImportError at CI time
+# Placeholders are quoted so this file is valid YAML as-shipped; an
+# un-replaced placeholder fails the run loudly (intended).
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    branches: [main, staging]
+  push:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend — lint + format + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "{{FRONTEND_DIR}}"          # e.g. frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "{{NODE_VERSION}}"             # e.g. 20
+          cache: npm
+          cache-dependency-path: "{{FRONTEND_DIR}}/package-lock.json"
+      - run: "{{INSTALL_CMD}}"                          # e.g. npm ci
+      - name: Lint
+        run: "{{LINT_CMD}}"                            # e.g. npm run lint
+      - name: Format check
+        run: "{{FORMAT_CHECK_CMD}}"                    # e.g. npm run format:check
+      # WHY (keep this step): a production build catches unresolved imports /
+      # missing files that linters miss — a file imported but never committed
+      # passes lint, fails build. Cairn lesson: lint != build.
+      - name: Build
+        run: "{{BUILD_CMD}}"                           # e.g. npm run build
+
+  backend:
+    name: Backend — lint + security + import check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "{{BACKEND_DIR}}"           # e.g. backend
+    steps:
+      - uses: actions/checkout@v4
+      # Swap setup-python for your runtime's setup action if not Python.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"         # e.g. 3.11
+          cache: pip
+      - run: "{{INSTALL_CMD}}"                         # e.g. pip install -r requirements.txt
+      - name: Lint
+        run: "{{LINT_CMD}}"                            # e.g. ruff check .
+      - name: Security scan
+        run: "{{SECURITY_CMD}}"                        # e.g. bandit -r .
+      # WHY (keep this step): loading the app surfaces cross-module ImportError
+      # at CI time instead of letting it crash-loop the deployed service.
+      # Linters do not follow cross-module imports. Cairn lesson — INC-01 class
+      # (a removed symbol still imported elsewhere crash-looped prod).
+      - name: Verify app imports
+        run: "{{IMPORT_CHECK_CMD}}"                    # e.g. PYTHONPATH=. python -c "import main"
+
+      # ── OPTIONAL — API-contract drift gate ──────────────────────────────
+      # If your backend emits a machine-readable API spec (OpenAPI, GraphQL
+      # SDL, protobuf), commit it to the repo and diff it here so a schema
+      # change without a regenerated spec fails the PR. Compare newline-
+      # agnostic via "$(cat ...)" — trailing-newline diffs are cosmetic and
+      # must NOT fail the gate (a real Cairn bug: see CAIRN_KNOWLEDGE FM-11).
+      # Uncomment + fill placeholders to enable:
+      #
+      # - name: Verify API spec up to date
+      #   working-directory: ${{ github.workspace }}
+      #   run: |
+      #     {{GENERATE_SPEC_CMD}} > /tmp/spec-fresh
+      #     if [ "$(cat {{SPEC_PATH}})" = "$(cat /tmp/spec-fresh)" ]; then
+      #       echo "✓ API spec matches code"
+      #     else
+      #       echo "::error::API spec out of date — run the regen script + commit"
+      #       diff {{SPEC_PATH}} /tmp/spec-fresh | head -50 || true
+      #       exit 1
+      #     fi
+
+# ── OPTIONAL — static analysis job ──────────────────────────────────────
+# Add a SonarCloud / CodeQL job if desired. Make it graceful-degrade: gate
+# the run on the token being present so forks / fresh clones don't hard-fail
+# (e.g. a step `if: ${{ secrets.SONAR_TOKEN != '' }}`).
