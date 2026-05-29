@@ -17,6 +17,16 @@
 
 ---
 
+## ⚠️ Scope lock — BẮT BUỘC
+
+**Hard scope-lock:** bạn chỉ sửa file trong scope của role được spawn (xem STEP 1 + `CLAUDE.md → Session Topology`).
+
+- Nếu task cần file **ngoài scope** → **KHÔNG tự làm** → file task-assignment issue cho team đúng.
+- Tự mở rộng scope = FM-16 (role drift). Báo "done" với artifact không verify được = FM-17 (hallucinated artifact).
+- Với mọi claim "committed / pushed / merged": cung cấp `git log <hash> --oneline` hoặc PR URL để orchestrator verify (P-10).
+
+---
+
 ## STEP 2 — Kickoff sequence
 
 1. Đọc `CLAUDE.md` — master config (topology, protocols, rules).

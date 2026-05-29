@@ -4,7 +4,7 @@
 > Dự án Cairn KHÔNG copy file này (tránh drift) — chỉ pointer qua `docs/CAIRN.md`.
 > Đóng góp: file `cairn-learning` issue về cairn. Xem `README.md §Contribute back`.
 >
-> Version: v0.6 — seeded từ Bingxue ERP (N=1); calibrated qua 5 vòng audit (#121 + review v0.2→v0.5, #122).
+> Version: v0.7 — fold FM-16/FM-17/P-10 (2026-05-29). Seeded từ Bingxue ERP (N=1); calibrated qua 5 vòng audit (#121 + review v0.2→v0.5, #122).
 > **§3 Open Gaps là single source cho toàn bộ giới hạn Cairn** — CAIRN_CONCEPTS chỉ pointer về đây (tránh trùng lặp).
 
 ---
@@ -76,6 +76,11 @@ Rule không đứng yên — di chuyển 2 chiều theo tín hiệu friction. Ch
 
 **Relevance Review health:** retire rate thấp-nhưng-khác-0 mỗi sweep. KHÔNG đặt số cứng (N=1, chưa data) — nhưng: 0% kéo dài → sweep không chạy thật; đột biến cao → over-pruning hoặc tồn đọng retire quá hạn.
 
+### P-10 — Post-claim verification
+Bất kỳ session nào claim "committed / merged / pushed" phải cung cấp artifact verify được: `git log <hash> --oneline`, PR URL, hoặc diff link. Orchestrator verify trước khi trust — KHÔNG nhận "done" chưa check.
+**Rationale:** FM-17 (hallucinated artifact) che FM-16 (role drift) — session mở rộng scope rồi fabricate bằng chứng. Verify artifact surface cả hai cùng lúc. Đặc biệt cần thiết với session có scope hẹp (docs-editor, QC) vì họ không nên có code commit thật.
+**Status:** `hypothesis` — derive từ FM-17 incident (Bingxue ERP 2026-05-29), chưa được practice hệ thống.
+
 ---
 
 ## 2. Failure Modes Catalog (đã gặp → mitigation)
@@ -146,6 +151,16 @@ UI code lệch mockup — Tier-1 gate không phủ được visual/UX compliance
 **Mitigation:** mockup = nguồn sự thật, đọc file trước khi code; Tier-3 QC visual review; Designer single-owner mockup artifact (C-3 sub-ownership).
 **Class:** G-5 semantic — thuộc Tier-3, ngoài tầm gate.
 
+### FM-16 — Role drift (session tự mở rộng scope ngoài role được spawn)
+Session nhận role/scope cụ thể (vd docs-editor, scope `docs/**`) nhưng tự take task ngoài scope — plan + claim implement code backend/frontend — thay vì file task-assignment issue cho team đúng.
+**Mitigation:** Spawn template thêm "**Hard scope-lock**: chỉ sửa file trong [scope]. Nếu cần ngoài scope → file task-assignment issue cho team đúng, KHÔNG tự làm." CLAUDE.md role definition cần explicit scope boundary, không chỉ tên role.
+**Class:** G-1 autonomy mis-calibration — agent over-extend beyond assigned role.
+
+### FM-17 — Hallucinated artifact (báo done với artifact không tồn tại)
+Session báo "committed `<hash>`" / "merged PR #X" với artifact ID không tồn tại trong repo. Nguy hiểm hơn FM-16 vì nó **che** FM-16: scope violation + fabricated evidence → nếu orchestrator không verify, breach ngấm vào project history như fact.
+**Mitigation:** P-10 Post-claim verification — orchestrator verify `git log <hash> --oneline` hoặc PR URL trước khi đánh dấu task done. Không accept "done" chưa check artifact.
+**Class:** meta-failure — fabricated evidence che underlying scope violation (FM-16). Analogue FM-11 (enforcement code tự nó sai) nhưng ở layer báo cáo, không layer gate.
+
 ---
 
 ## 3. Open Gaps (chưa đạt chuẩn / chưa đóng)
@@ -162,7 +177,7 @@ UI code lệch mockup — Tier-1 gate không phủ được visual/UX compliance
 | **Delivery/timing** | C-3+C-4 = eventual consistency, không timely. Lag window backend-ship → docs-fold | `## API Field Mapping` fast-path cho breaking API change |
 | **Orchestrator scaling ceiling** | C-1 = single human orchestration point → throughput bound bởi 1 human. Ngưỡng N session overload chưa đo (Known Limitation #6) | Multi-human orchestrator (untested) — partial automation đã loại |
 
-**Honest:** Cairn v0.6 KHÔNG giải quyết hết. Qua 5 vòng audit (#121 + review v0.2→v0.5): tầng Social mạnh, C-6 3-tier (gate · signal · QC), P-09 vòng đời 2 chiều + success criteria per-tier, FM-11..FM-15 (gồm meta-failure: enforcement code tự nó sai được). Các gap trên vẫn mở. Methodology trung thực về biên đáng tin hơn tuyên bố khép kín.
+**Honest:** Cairn v0.7 KHÔNG giải quyết hết. Qua 5 vòng audit (#121 + review v0.2→v0.5): tầng Social mạnh, C-6 3-tier (gate · signal · QC), P-09 vòng đời 2 chiều + success criteria per-tier, FM-11..FM-15 (gồm meta-failure: enforcement code tự nó sai được). FM-16/FM-17 (v0.7): role drift + hallucinated artifact — mitigation social (scope-lock prompt) + operational (P-10 verify). Các gap trên vẫn mở. Methodology trung thực về biên đáng tin hơn tuyên bố khép kín.
 
 ---
 
@@ -176,6 +191,7 @@ UI code lệch mockup — Tier-1 gate không phủ được visual/UX compliance
 - ❌ **Expiry-by-silence cho rule** — "rule không bị vi phạm N tuần → retire" SAI: silence ≠ obsolete (rule im lặng thường vì *đang work*, mọi người tuân). Dùng Relevance Review hỏi "hazard rule canh có còn không" (P-09 Path B).
 - ❌ **Tin gate vừa promote khi chưa thấy nó đỏ** — gate code cũng plausible-nhưng-sai (FM-11). Red-test (vi phạm cố ý → xác nhận gate fail) trước khi tin.
 - ❌ **Demote gate chỉ vì nó có bug** — gate-bug (code lỗi, concept đúng) thì *sửa*, không demote. Chỉ demote khi gate-concept-wrong (rule cần judgment).
+- ❌ **Trust "done" chưa verify artifact** — session claim "committed/merged" mà không cung cấp hash/URL verify được = FM-17 risk. Apply P-10: verify trước khi accept.
 
 ---
 
@@ -183,7 +199,7 @@ UI code lệch mockup — Tier-1 gate không phủ được visual/UX compliance
 
 | Dự án | N | Period | Key learnings |
 |-------|---|--------|---------------|
-| Bingxue ERP | 1 | 2026-05 | Seed patterns + failure modes. Topology 5→11. INC-01. **Audit #121** → v0.2: C-6 + 2 tầng; bỏ "minimal & complete". **Review v0.2** → v0.3: C-6 2-tier; P-09 Rule Promotion; "1 nền tảng + 5 mechanism". **Review v0.3** → v0.4: P-09 vòng đời 2 chiều; Path B = Relevance Review; "worth mechanizing?" gate; C-6 Tier-2 "ai bắt QC"; dedupe → §3 single source. **Review v0.4** → v0.5: P-09 Success Criteria; FM-09 reclassify (Tier-1 gate candidate, không phải concept); Issues bus grade Above→At; trim P-08; anti-pattern expiry-by-silence. **Review v0.5 (#122, 6 reviews)** → v0.6: C-6 3-tier (gate · signal · QC, trục detection×action); Promotion flowchart 2-câu-hỏi (detection → action); Demotion tách gate-bug vs gate-concept-wrong; P-09 Success Criteria rework (pre/post-promotion, per-tier, M=task-count, bỏ "near-fire"); FM-11..FM-15 (gồm FM-11 meta-failure); FM-09 re-reclassify Tier-1→Tier-2 signal; C-1 solo-mode, C-2 cross-cutting ops, C-3 sub-ownership; promotion authority (docs-editor detect → scope-owner build). **Maturity-tag pass (critique Infra):** mỗi concept gắn `proven`/`designed`/`hypothesis` — C-1..C-5 + Tier-1 `proven`, Tier-3 `designed`, Tier-2 + P-09 `hypothesis`; sửa dòng "cross-audit self-validating" (lập luận vòng tròn); critique Infra → checklist phản nghiệm cho N=2. |
+| Bingxue ERP | 1 | 2026-05 | Seed patterns + failure modes. Topology 5→11. INC-01. **Audit #121** → v0.2: C-6 + 2 tầng; bỏ "minimal & complete". **Review v0.2** → v0.3: C-6 2-tier; P-09 Rule Promotion; "1 nền tảng + 5 mechanism". **Review v0.3** → v0.4: P-09 vòng đời 2 chiều; Path B = Relevance Review; "worth mechanizing?" gate; C-6 Tier-2 "ai bắt QC"; dedupe → §3 single source. **Review v0.4** → v0.5: P-09 Success Criteria; FM-09 reclassify (Tier-1 gate candidate, không phải concept); Issues bus grade Above→At; trim P-08; anti-pattern expiry-by-silence. **Review v0.5 (#122, 6 reviews)** → v0.6: C-6 3-tier (gate · signal · QC, trục detection×action); Promotion flowchart 2-câu-hỏi (detection → action); Demotion tách gate-bug vs gate-concept-wrong; P-09 Success Criteria rework (pre/post-promotion, per-tier, M=task-count, bỏ "near-fire"); FM-11..FM-15 (gồm FM-11 meta-failure); FM-09 re-reclassify Tier-1→Tier-2 signal; C-1 solo-mode, C-2 cross-cutting ops, C-3 sub-ownership; promotion authority (docs-editor detect → scope-owner build). **Maturity-tag pass (critique Infra):** mỗi concept gắn `proven`/`designed`/`hypothesis` — C-1..C-5 + Tier-1 `proven`, Tier-3 `designed`, Tier-2 + P-09 `hypothesis`; sửa dòng "cross-audit self-validating" (lập luận vòng tròn); critique Infra → checklist phản nghiệm cho N=2. **Fold v0.7 (2026-05-29):** FM-16 (role drift) + FM-17 (hallucinated artifact) — docs-editor session tự mở scope sang code backend/frontend + báo commit hash không tồn tại. P-10 Post-claim verification (hypothesis). Hard scope-lock thêm vào `docs/NEW_SESSION_INSTRUCTION.md`. Anti-pattern "trust done chưa verify" thêm vào §4. |
 | _(dự án tiếp theo)_ | 2 | — | _(append qua cairn-learning issues)_ |
 
 > **Chuỗi review KHÔNG phải external validation (sửa v0.6 — critique Infra):** #121 → review v0.2→v0.5 đều là session của *cùng một dự án seed* tự review. Nó tạo internal consistency + polish, KHÔNG tạo external validity. Đây là self-consistency của một mẫu N=1, không phải bằng chứng cross-project. Phiên bản trước của dòng này tự nhận "self-validating" — đó là lập luận vòng tròn (framework tự trích quy trình review của nó để chứng minh concept của nó về review). External validation chỉ thật sự bắt đầu ở N=2.
@@ -220,4 +236,4 @@ MetaGPT limitation Cairn địa chỉ trực tiếp: MetaGPT vật lộn với c
 
 ---
 
-*Cairn Knowledge Tree v0.6. Fold `cairn-learning` issues vào đây + bump version.*
+*Cairn Knowledge Tree v0.7. Fold `cairn-learning` issues vào đây + bump version.*
