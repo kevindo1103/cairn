@@ -143,6 +143,70 @@ Windsurf không có hook — kickoff prompt phải có Bước 0 list issues.
 
 ---
 
+## Machine-readable issue body convention (C-6 Tier-2)
+
+> Dùng khi muốn cron automation hoặc bot đọc trạng thái issue mà không parse free-text.
+
+Thêm HTML comment block vào **cuối body** của bất kỳ issue nào cần machine-readability:
+
+```html
+<!-- cairn-machine
+status: blocked
+type: waiting_dependency
+waiting_for: "#123"
+scope: backend
+priority: high
+-->
+```
+
+**Fields:**
+
+| Field | Values | Mô tả |
+|-------|--------|-------|
+| `status` | `planned` · `in_progress` · `review` · `blocked` · `done` | Mirror label kanban |
+| `type` | `task` · `relay` · `spec_conflict` · `blocker` · `question` | Mirror type label |
+| `waiting_for` | `"#<issue>"` · `"<branch>"` · `"<team>"` | Dependency cụ thể |
+| `scope` | team name (`backend`, `frontend`, …) | Ai xử lý |
+| `priority` | `low` · `normal` · `high` · `critical` | Độ ưu tiên |
+
+**Rules:**
+- Block nằm **cuối body**, sau mọi nội dung human-readable.
+- Không bắt buộc — thêm khi cần automation. Thiếu block = human-only issue.
+- Khi update trạng thái: edit comment block, không tạo mới.
+- Cron script đọc block này → update TEAM_STATE YAML → dashboard (xem `docs/TEAM_STATE_SCHEMA.md`).
+
+**Ví dụ issue đầy đủ:**
+
+```
+Title: [Backend] Add checkout API endpoint
+Labels: from:frontend, for:backend, task-assignment, status:planned
+
+## Context
+Frontend ShiftReview cần POST /operations/checkout endpoint...
+
+## Plan
+1. Branch: windsurf/feat-backend-checkout-api from origin/main
+2. Files: backend/modules/operations/router.py, service.py, schemas.py
+3. Schema: CheckoutIn {ws_id, actual_end_time}, CheckoutOut {id, status}
+4. Test: curl POST /operations/checkout {ws_id: 1}
+
+## Ask
+Implement checkout endpoint per SRS §4.12.3
+
+## Refs
+- SRS §4.12.3
+- Issue #89 (EOS prefill context)
+
+<!-- cairn-machine
+status: planned
+type: task
+scope: backend
+priority: normal
+-->
+```
+
+---
+
 ## Khi nào KHÔNG dùng GitHub Issues
 
 - Long-running context lead-to-lead (architectural debate) → user relay.
@@ -151,4 +215,4 @@ Windsurf không có hook — kickoff prompt phải có Bước 0 list issues.
 
 ---
 
-*Cairn v0.1 template. Customize label list theo topology dự án.*
+*Cairn v0.7 template. Customize label list theo topology dự án.*
