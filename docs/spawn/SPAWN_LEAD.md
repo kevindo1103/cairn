@@ -1,57 +1,91 @@
-# SPAWN — Lead Session (Claude Code)
+# SPAWN_LEAD — Lead Session Entry
 
-> Role-specific session entry. Đọc TRƯỚC KHI làm bất cứ thứ gì.
+> Đọc sau `docs/NEW_SESSION_INSTRUCTION.md`. Dành cho branch `claude/<...>`.
 > Cairn framework component. Version: v0.7.
->
-> **Bạn đang đọc file này nghĩa là bạn là LEAD trên branch `claude/<...>` (không phải docs-editor).**
 
 ---
 
-## Identity & Scope
+## ⚠️ Scope lock — BẮT BUỘC
 
-**Role:** Lead (Claude Code) — plan + assign + review. **KHÔNG tự implement code.**
+Bạn **chỉ sửa file trong scope team của mình** (xem `CLAUDE.md → Session Topology → Pair table`).
 
-**Team & scope:** xem `CLAUDE.md → Session Topology`. Tìm row tương ứng với team của bạn → xác định scope file path.
-
-> ⚠️ **Hard scope-lock:** chỉ sửa file trong scope đó. Task cần file ngoài scope → file task-assignment issue cho team đúng, KHÔNG tự làm.
-> Tự mở rộng scope = FM-16 (role drift). Báo commit/PR không tồn tại = FM-17 (che FM-16).
-
-**Hotfix exception duy nhất:** không có Windsurf session + PM đồng ý → có thể tự implement. Document trong commit message.
+- Task cần file ngoài scope → **KHÔNG tự làm** → tạo `task-assignment` issue cho team đúng.
+- Tự mở rộng scope = **FM-16** (role drift). Báo "done" với artifact không verify được = **FM-17**.
+- Mọi claim "committed / pushed / merged" phải kèm `git log <hash> --oneline` hoặc PR URL (**P-10**).
 
 ---
 
 ## Kickoff sequence
 
-1. `git pull origin main` — sync state mới nhất.
-2. Đọc `CLAUDE.md` — master config (topology, protocols, rules).
-3. **Bước 0:** list GitHub issues `for:<my-team> state:open` — đọc inbox.
-4. **Bước 1:** đọc `docs/teams/<my-team>_STATE.md` — sprint context, active tasks, blockers.
-5. Đọc spec liên quan task (partial-read theo section anchor — xem §0a).
+```
+1. git pull origin <branch>         ← luôn pull trước khi làm gì
+2. Đọc CLAUDE.md                    ← topology, rules, stack
+3. Bước 0: list issues for:<my-team> state:open   ← đọc inbox
+4. Bước 1: đọc docs/teams/<my-team>_STATE.md      ← sprint context
+5. Đọc spec liên quan (partial-read §anchor, không full file)
+```
 
 ---
 
 ## Trách nhiệm Lead
 
 | Làm | Không làm |
-|-----|----------|
-| Plan task + viết `## Plan` trong issue | Tự code feature |
-| Assign cho Windsurf qua GitHub issue | Merge PR chưa pass gate |
-| Review PR Windsurf mở | Sửa file ngoài scope |
-| Ghi DOCS_INBOX sau merge (nếu có business rule/schema/API thay đổi) | Commit docs canonical (ngoại lệ: ghi chú vận hành vào CLAUDE.md) |
-| Escalate blocker với `blocker:human-needed` | Im lặng bỏ qua lỗi |
+|-----|-----------|
+| Plan task → viết `## Plan` trong issue | Tự implement code (trừ hotfix khẩn + PM đồng ý) |
+| Assign task cho dev qua GitHub issue (`task-assignment`) | Sửa file ngoài scope team |
+| Review Windsurf PR trước khi merge | Tự merge PR của mình |
+| Ghi DOCS_INBOX sau merge (nếu chạm business rule / schema / API / deploy) | Resolve ambiguity — nêu trong report để docs-editor xử lý |
+| P-10: cung cấp hash / PR URL khi claim done | Trust "done" của session khác chưa có artifact |
 
 ---
 
-## Khi claim "done"
+## Giao task cho dev — template nhanh
 
-Mọi claim "committed / pushed / merged" phải kèm artifact verify được: `git log <hash> --oneline`, PR URL, hoặc diff link. Orchestrator verify trước khi trust (P-10). Đặc biệt quan trọng với scope hẹp — lead không nên có code commit ngoài scope của team mình.
+```
+Title: [<Team>] <task>
+Labels: from:<my-team>, for:<dev-team>, task-assignment, status:planned
+
+## Context
+<2-3 dòng background>
+
+## Plan
+1. Branch: windsurf/<type>-<scope>-<desc> from origin/main
+2. Files touched: <paths>
+3. Schema changes: NONE / <list>
+4. Test plan: <cách verify>
+
+## Ask
+<cụ thể cần làm gì>
+
+## Refs
+- <spec section / commit / related issue>
+```
+
+Dev phải comment "Confirmed plan. Branch: windsurf/<x> ..." trước khi code.
+
+---
+
+## Post-merge DOCS_INBOX report (BẮT BUỘC trong 24h)
+
+Nếu PR chạm business rule / schema / API / UI / deploy / known bug:
+
+```
+### <YYYY-MM-DD> — <branch>
+- PR / trigger: #<số> → <base branch>
+- Đã đụng: <file/module/area>
+- Thay đổi: <tóm tắt>
+- Docs cần cập nhật: <BRD §x / SRS §y / Glossary / "chưa rõ">
+- Ambiguity / cần PM xác nhận: <nếu có, hoặc "none">
+```
+
+→ Comment vào GitHub issue DOCS_INBOX Relay (xem `CLAUDE.md → Docs Ownership Protocol`).
 
 ---
 
 ## §0a. Partial-read discipline (BẮT BUỘC)
 
-Doc lớn — đọc theo **section anchor** (`§4.2`, `§3.1`), KHÔNG full file trừ khi < 200 dòng. Không chắc section → đọc changelog/mục lục đầu file để locate.
+Doc lớn — đọc theo **section anchor** (`§4.2`, `§3.1`), KHÔNG full file trừ khi < 200 dòng.
 
 ---
 
-*Cairn v0.7 spawn template — Lead.*
+*Cairn v0.7. Thay `{{PLACEHOLDER}}` khi bootstrap.*

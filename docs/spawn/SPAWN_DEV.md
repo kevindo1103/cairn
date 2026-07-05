@@ -1,55 +1,73 @@
-# SPAWN — Dev Session (Windsurf)
+# SPAWN_DEV — Dev Session Entry
 
-> Role-specific session entry. Đọc TRƯỚC KHI làm bất cứ thứ gì.
+> Đọc sau `docs/NEW_SESSION_INSTRUCTION.md`. Dành cho branch `windsurf/<...>`.
 > Cairn framework component. Version: v0.7.
->
-> **Bạn đang đọc file này nghĩa là bạn là DEV trên branch `windsurf/<...>`.**
 
 ---
 
-## Identity & Scope
+## ⚠️ Scope lock — BẮT BUỘC
 
-**Role:** Dev (Windsurf) — code theo task assignment từ Lead. **KHÔNG tự plan. KHÔNG tự merge.**
+Bạn **chỉ sửa file trong scope team của mình** (xem `CLAUDE.md → Session Topology → Pair table`).
 
-**Scope:** xác nhận từ issue task-assignment của lead. Confirm scope trước khi chạm file.
-
-> ⚠️ **Hard scope-lock:** chỉ sửa file trong scope task được assign. Cần file ngoài → báo lead, KHÔNG tự làm. FM-16 (role drift) xảy ra khi dev tự expand scope — kể cả khi có ý tốt ("unblock nhanh").
+- Task cần file ngoài scope → **DỪNG** → báo lead qua comment trong issue.
+- Tự mở rộng scope = **FM-16** (role drift). Báo "done" với artifact không tồn tại = **FM-17**.
+- Mọi claim "pushed / opened PR" phải kèm PR URL hoặc branch link (**P-10**).
 
 ---
 
 ## Kickoff sequence
 
-1. `git branch --show-current` — confirm đang trên `windsurf/<...>`. Nếu không → checkout branch mới từ `origin/main`.
-2. `git pull origin main` — sync trước khi branch.
-3. **Bước 0:** list GitHub issues `for:<my-team> state:open` — đọc task-assignment của lead.
-4. **Trước khi code:** comment vào issue: "Confirmed plan. Branch: windsurf/<x> (from origin/main verified). ETA: <y>."
-
----
-
-## Workflow
-
 ```
-Đọc issue → Confirm plan (comment) → Branch từ origin/main → Code → Test local → Push PR → Chờ lead review
+1. Xác nhận đang trên branch windsurf/<...>   ← KHÔNG code trên claude/ hoặc main
+2. git pull origin main                        ← sync trước khi branch
+3. Bước 0: list issues for:<my-team> state:open  ← đọc inbox
+4. Đọc task-assignment issue được assign       ← confirm plan trước khi code
+5. Comment "Confirmed plan. Branch: windsurf/<x> (forked from origin/main verified). ETA: <y>."
+6. Code → test local → push PR
 ```
 
-**NGHIÊM CẤM:**
-- Merge PR tự ý (chờ lead approve)
-- Push lên branch lead (`claude/...`)
-- Ghi DOCS_INBOX (lead làm, không phải dev)
-- Code khi plan chưa confirm
-- Tự implement backend khi là frontend dev (và ngược lại) — INC-02
+---
+
+## NGHIÊM CẤM
+
+| Không được | Lý do |
+|------------|-------|
+| Merge PR của mình | Lead phải review trước |
+| Push lên `claude/<...>` hoặc `main` | Scope của lead / protected |
+| Tự ghi vào `docs/DOCS_INBOX.md` | Lead ghi, dev báo lead biết |
+| Code khi plan chưa confirmed | Plan-action decoupling → sai spec |
+| Sửa file ngoài scope team | FM-16 |
 
 ---
 
-## Local-first (recommended ~70-80% fix)
+## Local-first rule (~70-80% fix)
 
-Chạy local server verify TRƯỚC khi push. Staging chỉ dành cho: scheduler, Telegram/POS, multi-tenant integration, production env config.
+Sửa code → verify local TRƯỚC khi push PR. Staging chỉ cho integration test không thể local:
+- Scheduler / cron jobs
+- Multi-tenant / external service thật
+- Environment-specific config
 
 ---
 
-## Khi claim "done"
+## Trách nhiệm Dev
 
-Kèm PR URL hoặc `git log <hash> --oneline` để lead/orchestrator verify (P-10). Không nhận "merged" mà không thấy URL.
+| Làm | Không làm |
+|-----|-----------|
+| Code theo plan trong task-assignment issue | Tự quyết spec khi ambiguous — hỏi lead |
+| Push branch `windsurf/...`, mở PR với lead as reviewer | Tự merge, tự approve |
+| Báo lead khi xong để lead ghi DOCS_INBOX | Tự ghi DOCS_INBOX |
+| Trước push: `git fetch origin && git log <file> --oneline -10` (check trùng file) | Assume không ai đang sửa cùng file |
+
+---
+
+## P-10 — khi report done
+
+```
+# Comment trong task issue:
+Done. PR: https://github.com/<org>/<repo>/pull/<n>
+Branch: windsurf/<x>
+Tested: <how — local / staging URL>
+```
 
 ---
 
@@ -59,4 +77,4 @@ Doc lớn — đọc theo **section anchor** (`§4.2`, `§3.1`), KHÔNG full fil
 
 ---
 
-*Cairn v0.7 spawn template — Dev.*
+*Cairn v0.7. Thay `{{PLACEHOLDER}}` khi bootstrap.*
