@@ -1,76 +1,35 @@
 # NEW_SESSION_INSTRUCTION — {{PROJECT_NAME}}
 
 > Dành cho mọi AI session khi bắt đầu. Đọc file này TRƯỚC KHI làm bất cứ thứ gì.
-> Cairn framework component.
+> Cairn framework component. Version: v0.7.
 
 ---
 
-## STEP 1 — Xác định role: Lead vs Dev
+## STEP 1 — Xác định role, rồi đọc file spawn tương ứng
 
-**Bạn là LEAD (Claude Code) nếu:** spawn trên branch `claude/<...>`.
-→ Trách nhiệm: plan task, assign cho dev qua GitHub issue, review PR, ghi DOCS_INBOX sau merge.
+| Branch hiện tại | Role | File cần đọc tiếp |
+|-----------------|------|-------------------|
+| `claude/edit-git-docs-<id>` | **Docs-Editor** | `docs/spawn/SPAWN_DOCS_EDITOR.md` |
+| `claude/<...>` | **Lead** | `docs/spawn/SPAWN_LEAD.md` |
+| `windsurf/<...>` | **Dev** | `docs/spawn/SPAWN_DEV.md` |
 
-**Bạn là DEV (Windsurf) nếu:** spawn trên branch `windsurf/<...>`.
-→ Trách nhiệm: code theo task assignment, push PR, chờ lead approve. KHÔNG tự merge, KHÔNG ghi DOCS_INBOX. Đọc thêm `.windsurf/rules.md`.
+**Đọc file spawn tương ứng ngay sau này.** File spawn chứa kickoff sequence đầy đủ, scope lock, và do/don't table cho role của bạn.
 
-**Xác định team:** xem topology table trong `CLAUDE.md → Session Topology`. Confirm scope file trước khi đụng.
+Xác định team: xem topology table trong `CLAUDE.md → Session Topology`. Confirm scope file trước khi đụng bất kỳ file nào.
 
 ---
 
-## ⚠️ Scope lock — BẮT BUỘC
+## ⚠️ Scope lock — BẮT BUỘC (tóm tắt — chi tiết trong file spawn)
 
-**Hard scope-lock:** bạn chỉ sửa file trong scope của role được spawn (xem STEP 1 + `CLAUDE.md → Session Topology`).
+**Hard scope-lock:** bạn chỉ sửa file trong scope của role được spawn.
 
 - Nếu task cần file **ngoài scope** → **KHÔNG tự làm** → file task-assignment issue cho team đúng.
-- Tự mở rộng scope = FM-16 (role drift). Báo "done" với artifact không verify được = FM-17 (hallucinated artifact).
-- Với mọi claim "committed / pushed / merged": cung cấp `git log <hash> --oneline` hoặc PR URL để orchestrator verify (P-10).
+- Tự mở rộng scope = **FM-16** (role drift). Báo "done" với artifact không verify được = **FM-17** (hallucinated artifact).
+- Với mọi claim "committed / pushed / merged": cung cấp `git log <hash> --oneline` hoặc PR URL để orchestrator verify (**P-10**).
 
 ---
 
-## STEP 2 — Kickoff sequence
-
-1. Đọc `CLAUDE.md` — master config (topology, protocols, rules).
-2. Đọc `docs/SESSION_COMMS.md` — comms protocol.
-3. **Bước 0:** list GitHub issues `for:<my-team> state:open` — đọc inbox.
-4. **Bước 1:** đọc `docs/teams/<my-team>_STATE.md` — current sprint context.
-5. Đọc spec liên quan task (partial-read — xem §0a).
-
----
-
-## §0a. Partial-read discipline (BẮT BUỘC)
-
-Canonical docs (BRD/SRS) lớn — đọc **theo section anchor** (`§4.2`, `§3.1`), KHÔNG full file. Không chắc section → đọc changelog/mục lục đầu file để locate. Full-file read chỉ khi file < 200 dòng.
-
----
-
-## §0. Docs Ownership Protocol
-
-**Toàn bộ `docs/` + root `*.md` do MỘT docs-editor session quản lý** — branch `claude/edit-git-docs-{{DOCS_ID}}`.
-
-- KHÔNG sửa trực tiếp `docs/` hoặc root `*.md` (ngoại lệ: ghi chú vận hành vào `CLAUDE.md`).
-- Thay đổi ảnh hưởng business rule/schema/API/UI/deploy/bug → ghi report vào `docs/DOCS_INBOX.md §Pending`.
-- Post-merge: PR merge → append Pending report trong 24h.
-- Không tự resolve ambiguity — nêu trong report.
-
-Chi tiết: `CLAUDE.md → Docs Ownership Protocol`.
-
----
-
-## Branch Flow
-
-| Branch | Role | Deploy |
-|--------|------|--------|
-| `main` | Production canonical | Prod |
-| `staging` | Pre-prod test | Staging |
-| `claude/<...>` / `windsurf/<...>` | Feature/fix | Không auto-deploy |
-
-Flow: feature branch → PR `staging` → test → PR `staging` → `main`.
-
-KHÔNG SSH/SFTP trực tiếp. KHÔNG migration trực tiếp trên server.
-
----
-
-## Source of Truth Documents — đọc theo thứ tự
+## §0. Source of Truth Documents
 
 | # | File | Mục đích |
 |---|------|----------|
@@ -80,6 +39,23 @@ KHÔNG SSH/SFTP trực tiếp. KHÔNG migration trực tiếp trên server.
 | 4 | `docs/SRS.md` | Implementation spec |
 | 5 | `docs/PROJECT_PLAN.md` | Roadmap |
 
+Đọc theo section anchor (`§4.2`, `§3.1`) — KHÔNG full file. Chi tiết: `CLAUDE.md → Partial-read discipline`.
+
 ---
 
-*Cairn v0.1 template. Thay `{{PLACEHOLDER}}` khi bootstrap.*
+## §1. Branch Flow
+
+| Branch | Role | Deploy |
+|--------|------|--------|
+| `main` | Production canonical | Prod |
+| `staging` | Pre-prod test | Staging |
+| `claude/edit-git-docs-<id>` | Docs-Editor canonical lane | Không auto-deploy |
+| `claude/<...>` / `windsurf/<...>` | Feature/fix | Không auto-deploy |
+
+Flow: feature branch → PR `staging` → test → PR `staging` → `main`.
+
+KHÔNG SSH/SFTP trực tiếp. KHÔNG migration trực tiếp trên server.
+
+---
+
+*Cairn v0.7 template. Thay `{{PLACEHOLDER}}` khi bootstrap.*

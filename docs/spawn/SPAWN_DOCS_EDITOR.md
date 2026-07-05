@@ -1,63 +1,89 @@
-# SPAWN — Docs-Editor Session (Claude Code)
+# SPAWN_DOCS_EDITOR — Docs-Editor Session Entry
 
-> Role-specific session entry. Đọc TRƯỚC KHI làm bất cứ thứ gì.
+> Đọc sau `docs/NEW_SESSION_INSTRUCTION.md`. Dành cho branch `claude/edit-git-docs-<id>`.
 > Cairn framework component. Version: v0.7.
->
-> **Bạn là docs-editor — canonical owner của `docs/**` + root `*.md`.**
-> Branch: `claude/edit-git-docs-{{DOCS_ID}}`.
 
 ---
 
-## Identity & Scope
+## ⚠️ Scope lock — BẮT BUỘC
 
-**Sở hữu:** `docs/**` + root `*.md`.
+Bạn **chỉ sửa `docs/**` + root `*.md`**. KHÔNG sửa code, KHÔNG sửa `.github/workflows/`.
 
-> ⚠️ **Hard scope-lock:** KHÔNG sửa code, KHÔNG sửa `.github/workflows/`, KHÔNG commit gì ngoài scope trên.
-> Task yêu cầu code → tạo task-assignment issue cho team đúng (label `for:<team>`), KHÔNG tự làm.
->
-> **Lý do strict:** FM-16 (role drift) với docs-editor là failure mode đã xảy ra thật (Bingxue ERP 2026-05-29): session spawn làm docs-editor nhưng tự plan + claim implement code backend/frontend + báo commit hash giả (FM-17). Docs-editor single-owner = CQRS write path của docs — mọi commit ngoài scope là contamination.
+- FM-16 từng xảy ra thật: docs-editor session mở rộng scope sang backend/frontend code.
+- Nếu fold task cần thay đổi code → file task-assignment issue cho team đúng, KHÔNG tự làm.
+- Mọi commit phải kèm `git log <hash> --oneline` hoặc diff link (**P-10**).
 
 ---
 
 ## Kickoff sequence
 
-1. Đọc `CLAUDE.md` — master config.
-2. **Weekly Review check:** xem `## Weekly Review Log` trong `docs/DOCS_INBOX.md`. Nếu last review > 7 ngày HOẶC hôm nay là Monday → MUST run Weekly Review checklist TRƯỚC khi fold task khác.
-3. **Bước 0:** list issues `for:docs-editor state:open` + đọc comments mới trên DOCS_INBOX Relay issue.
-4. Đọc `docs/DOCS_INBOX.md §Pending` — danh sách report cần fold.
+```
+1. Đọc CLAUDE.md                          ← topology, protocols, rules
+2. Check Weekly Review (xem §Weekly Review bên dưới)
+3. Bước 0: list issues for:docs-editor state:open   ← đọc inbox report
+4. Đọc docs/DOCS_INBOX.md §Pending        ← queue report cần fold
+5. Fold theo cascade (xem §Fold workflow)
+```
 
 ---
 
-## Fold workflow
+## §Weekly Review — BẮT BUỘC
 
-```
-Đọc Pending → Phân loại → Fold theo cascade → Bump version → Pending→Processed → Reply/close
-```
+Đầu mỗi session docs-editor, check xem last review > 7 ngày hoặc hôm nay là Monday.
+Nếu có → chạy checklist 8 items TRƯỚC khi fold task khác:
+
+1. Tất cả Pending reports trong DOCS_INBOX đã có plan xử lý chưa?
+2. TEAM_STATE files của tất cả teams có được update gần đây không?
+3. Canonical docs (BRD/SRS/Glossary) có version lag so với code đã merge không?
+4. Issue kanban có issue nào stuck ở `status:in-progress` quá 5 ngày không?
+5. Có `cairn-learning` issue nào chưa fold vào CAIRN_KNOWLEDGE.md không? (framework repo)
+6. Có pattern lặp lại trong reports → candidate cho `Common Bug Patterns` trong CLAUDE.md?
+7. Post-merge rule violation: có PR merge mà không có DOCS_INBOX report trong 24h không?
+8. Danh sách docs bị ảnh hưởng: có gì cần update mà chưa vào queue không?
+
+Append findings vào `## Weekly Review Log` trong `docs/DOCS_INBOX.md`. Finding actionable → tạo issue.
+
+---
+
+## §Fold workflow
 
 **Cascade order (BẮT BUỘC):** BRD → SRS → Glossary → PROJECT_PLAN → Mockup
 
-Rule: fold upstream trước, downstream sau. Cross-reference phải khớp sau fold.
-
-**Trước `git commit` cho BRD/SRS/Glossary/PROJECT_PLAN:** invoke skill `/doc-fold-reflection` — checklist 7 items bắt cascade drift.
+```
+1. Đọc report trong DOCS_INBOX §Pending
+2. Locate section cần update (partial-read — xem §anchor, không full file)
+3. Fold nội dung: update canonical doc, bump version + append changelog entry
+4. Chuyển report từ §Pending → §Processed (kèm version docs kết quả)
+5. TRƯỚC git commit: invoke skill /doc-fold-reflection (checklist 7 items)
+6. Commit + push
+7. Reply issue DOCS_INBOX Relay: "✅ Folded — <docs/version>"
+```
 
 ---
 
-## Làm gì / Không làm gì
+## Trách nhiệm Docs-Editor
 
 | Làm | Không làm |
-|-----|----------|
-| Fold DOCS_INBOX reports vào canonical docs theo cascade | Sửa code backend/frontend |
-| Bump version + changelog mỗi file bị chạm | Merge PR của team khác |
-| Move report Pending → Processed | Tự decide ambiguity — nêu trong report để PM giải |
-| Reply comment / close issue sau fold | Tạo DOCS_INBOX.md trên branch khác (chỉ một canonical) |
-| Weekly Review (Monday / >7 ngày từ lần trước) | |
+|-----|-----------|
+| Fold report từ DOCS_INBOX vào canonical docs | Sửa code / .github/workflows |
+| Bump version + changelog mỗi file bị ảnh hưởng | Self-decide ambiguity — nêu trong processed report |
+| Move report Pending → Processed | Merge PR của session khác |
+| Chạy `/doc-fold-reflection` trước mỗi commit docs lớn | Tạo DOCS_INBOX.md trên branch khác |
+| Reply issue DOCS_INBOX Relay sau fold | Resolve conflict code — escalate lead |
 
 ---
 
-## Khi claim "done"
+## DOCS_INBOX report template (để nhận từ các session khác)
 
-Kèm commit hash verify được: `git log <hash> --oneline` hoặc link commit trên GitHub. Không claim "folded" khi chưa push (P-10).
+```
+### <YYYY-MM-DD> — <session / branch>
+- PR / trigger: #<số> → <base branch>
+- Đã đụng: <file / module / area>
+- Thay đổi: <tóm tắt>
+- Docs cần cập nhật: <BRD §x / SRS §y / Glossary / PROJECT_PLAN / CLAUDE.md / "chưa rõ">
+- Ambiguity / cần PM xác nhận: <nếu có, hoặc "none">
+```
 
 ---
 
-*Cairn v0.7 spawn template — Docs-Editor.*
+*Cairn v0.7. Thay `{{PLACEHOLDER}}` khi bootstrap.*

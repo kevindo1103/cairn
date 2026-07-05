@@ -4,7 +4,7 @@
 >
 > Tên: **Cairn** = đống đá xếp chồng đánh dấu đường mòn — mỗi người đi qua đặt thêm một viên để người sau không lạc. Mỗi session đóng góp một "viên đá" (doc fold, lesson-as-rule); canonical docs là cọc tiêu; docs-editor giữ cọc tiêu thẳng hàng.
 >
-> Version: v0.6 — extracted từ Bingxue ERP (validation N=1). Dự án adopt tiếp theo là lần validate N=2 — ghi lại friction để cải tiến.
+> Version: v0.7 — thêm spawn templates + TEAM_STATE schema + cairn-init.sh + machine-readable Issues convention (2026-07-05). Extracted từ Bingxue ERP (validation N=1). Dự án adopt tiếp theo là lần validate N=2 — ghi lại friction để cải tiến.
 
 ---
 
@@ -34,10 +34,13 @@ Cairn = bộ protocol + template + workflow giải quyết 4 cái trên bằng p
 | **Async handoff** | `docs/DOCS_INBOX.md` | Queue report cross-session + Weekly Review |
 | **Comms protocol** | `docs/SESSION_COMMS.md` | GitHub Issues labels + kanban + error handling |
 | **Team state** | `docs/TEAM_STATE_PATTERN.md` + `docs/teams/` | Per-team current-state files |
-| **Session entry** | `docs/NEW_SESSION_INSTRUCTION.md` | Mọi session đọc khi spawn |
+| **Session entry** | `docs/NEW_SESSION_INSTRUCTION.md` | Router: đọc trước, redirect tới spawn file đúng role |
+| **Spawn templates** ★ v0.7 | `docs/spawn/SPAWN_LEAD.md` · `SPAWN_DEV.md` · `SPAWN_DOCS_EDITOR.md` | Role-specific kickoff + scope lock + do/don't per role |
 | **Dev onboarding** | `docs/WINDSURF_ONBOARDING.md` | Kickoff prompt cho dev session |
 | **Dev rules** | `.windsurf/rules.md` | Rule cho middle-dev session |
 | **Reflection skill** | `.claude/skills/doc-fold-reflection/` | Self-check trước commit docs |
+| **TEAM_STATE schema** ★ v0.7 | `docs/TEAM_STATE_SCHEMA.md` | YAML front-matter schema cho C-6 Tier-2 cron automation |
+| **Bootstrap script** ★ v0.7 | `scripts/cairn-init.sh` | One-shot init: tạo dirs, placeholders, settings hook |
 | **CI gate** | `.github/workflows/pr-quality-gate.yml` | Quality gate per PR |
 | **Observability** | `.github/workflows/weekly-review.yml` | Cron audit kanban health |
 | **Issue templates** | `.github/ISSUE_TEMPLATE/` | 4 template khớp Cairn comms pattern |
@@ -101,11 +104,13 @@ Cairn adopt theo **learning curve 3 cấp**, KHÔNG bê hết một lúc. Mỗi 
 **Trigger leo từ L1:** ≥3-4 session / ≥2 team → user relay thành bottleneck.
 
 **Thêm:**
-- `bash scripts/setup-labels.sh` → GitHub labels.
+- `bash scripts/cairn-init.sh` → tạo dirs/placeholders + gọi `setup-labels.sh` (nếu `gh` authed).
 - GitHub Projects board (cột Backlog / Planned / In Progress / Review / Done).
 - Issue templates (`.github/ISSUE_TEMPLATE/`).
 - `docs/SESSION_COMMS.md` + `docs/NEW_SESSION_INSTRUCTION.md` áp dụng đầy đủ.
-- `docs/TEAM_STATE_PATTERN.md` + `docs/teams/` per team.
+- `docs/spawn/SPAWN_{LEAD,DEV,DOCS_EDITOR}.md` — spawn templates thay thế flat NEW_SESSION_INSTRUCTION (v0.7).
+- `docs/TEAM_STATE_PATTERN.md` + `docs/teams/` per team — dùng YAML front-matter schema (`docs/TEAM_STATE_SCHEMA.md`).
+- *(optional)* `<!-- cairn-machine ... -->` block trong issues cho C-6 Tier-2 automation.
 
 **Giá trị:** cross-session coordination tự chạy qua Issues — user không relay từng tin.
 
@@ -196,13 +201,15 @@ Dự án mới: bake-in partial-read + error rules từ ngày 1 (free). Weekly c
 - [ ] docs-editor session đầu tiên spawn
 
 **L2 (khi ≥3-4 session):**
-- [ ] `setup-labels.sh` chạy xong
+- [ ] `setup-labels.sh` chạy xong (hoặc chạy `scripts/cairn-init.sh` — tự gọi setup-labels nếu `gh` authed)
 - [ ] Projects board + issue templates
-- [ ] TEAM_STATE files per team
+- [ ] TEAM_STATE files per team (schema: `docs/TEAM_STATE_SCHEMA.md`)
+- [ ] Spawn templates (`docs/spawn/`) sẵn sàng — kiểm tra `{{PLACEHOLDER}}` đã thay chưa
 
 **L3 (khi scale dev throughput):**
 - [ ] Windsurf pair + WINDSURF_ONBOARDING + .windsurf/rules.md
 - [ ] staging branch + pr-quality-gate + weekly-review cron
+- [ ] *(optional)* machine-readable `<!-- cairn-machine ... -->` block trong issues nếu muốn cron automation (xem `docs/SESSION_COMMS.md §Machine-readable`)
 
 **Cleanup (mọi cấp):**
 - [ ] `docs/CAIRN.md` — điền version + framework repo URL
@@ -216,4 +223,4 @@ Dự án dùng Cairn → phát hiện friction framework-level → file `cairn-l
 
 ---
 
-*Cairn v0.6 — feedback + friction từ dự án adopt → cải tiến cho v0.7.*
+*Cairn v0.7 — feedback + friction từ dự án adopt → cải tiến cho v0.8.*

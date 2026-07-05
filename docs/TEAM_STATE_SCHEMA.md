@@ -1,96 +1,127 @@
-# TEAM_STATE Schema — Machine-Readable Format
+# TEAM_STATE_SCHEMA — YAML Front-Matter Schema
 
+> Schema cho `docs/teams/*_STATE.md`. Enables C-6 Tier-2 cron automation.
 > Cairn framework component. Version: v0.7.
-> Mục đích: enable C-6 Tier-2 automation — cron script đọc state, surface cảnh báo mà không cần human parse markdown.
+
+---
+
+## Mục đích
+
+`docs/teams/<team>_STATE.md` = current sprint context cho mỗi team.
+- Human-readable phần body (free prose).
+- Machine-readable phần YAML front-matter → cron script đọc → dashboard / alert.
 
 ---
 
 ## Schema (YAML front-matter)
 
-Mỗi `docs/teams/<team>_STATE.md` bắt đầu bằng YAML front-matter giữa `---`:
-
 ```yaml
 ---
 # cairn-state — machine-readable. DO NOT remove block.
-team: backend                     # tên team (khớp label from:/for:)
-updated: "2026-05-29"            # ISO date, update sau mỗi merge
-updated_by: "claude/feat-xyz"    # branch của session đã update
-sprint_phase: "Phase 2F"         # current sprint label
-active_count: 2                   # số task đang in_progress hoặc review
-blocked_count: 1                  # số blocker mở
+team: backend                    # team name (lowercase, match label taxonomy)
+updated: "2026-05-29"            # ISO date, update mỗi lần edit file
+updated_by: "claude/feat-xyz"    # branch hoặc session ID
+sprint_phase: "Phase 2F"         # tên phase / sprint hiện tại
+active_count: 2                  # số task đang in-progress
+blocked_count: 1                 # số task bị block
+
 tasks:
   - issue: 145
     title: "Add checkout endpoint"
-    status: in_progress           # planned|in_progress|review|blocked
-    owner: windsurf               # lead|windsurf
+    status: in_progress          # planned | in_progress | review | blocked | done
+    owner: windsurf              # claude | windsurf | external
     branch: "windsurf/feat-backend-checkout-api"
-    blocked_by: null              # issue number nếu bị blocked, null nếu không
-  - issue: 144
-    title: "Fix auth middleware"
-    status: blocked
+    blocked_by: null             # issue number hoặc null
+
+  - issue: 148
+    title: "Migrate handover template"
+    status: planned
     owner: windsurf
-    branch: "windsurf/fix-backend-auth"
-    blocked_by: 143
+    branch: null
+    blocked_by: null
+
 blockers:
   - issue: 144
-    type: waiting_dependency      # human_needed|waiting_dependency
+    type: waiting_dependency     # human_needed | waiting_dependency
     description: "Chờ frontend confirm API contract"
 ---
 ```
 
-Phần còn lại của file = markdown bình thường (human-readable). YAML front-matter không render trong GitHub UI (collapsed dưới `---`).
+## Field reference
+
+| Field | Type | Mô tả |
+|-------|------|-------|
+| `team` | string | Tên team, lowercase. Match label taxonomy (`from:<team>`, `for:<team>`). |
+| `updated` | ISO date | Ngày cập nhật STATE.md lần cuối. Cron alert nếu > 7 ngày stale. |
+| `updated_by` | string | Branch hoặc session ID cập nhật. |
+| `sprint_phase` | string | Phase / sprint hiện tại. Free text. |
+| `active_count` | int | Số task `in_progress`. |
+| `blocked_count` | int | Số task `blocked`. |
+| `tasks[].issue` | int | GitHub issue number. |
+| `tasks[].status` | enum | `planned` · `in_progress` · `review` · `blocked` · `done` |
+| `tasks[].owner` | string | `claude` · `windsurf` · `external` |
+| `tasks[].branch` | string \| null | Branch đang chạy. Null nếu chưa start. |
+| `tasks[].blocked_by` | int \| null | Issue number gây block, hoặc null. |
+| `blockers[].type` | enum | `human_needed` (cần user) · `waiting_dependency` (track only) |
+
+---
+
+## Cron script mẫu (C-6 Tier-2)
+
+```bash
+#!/usr/bin/env bash
+# weekly-review.sh — check TEAM_STATE staleness + blocked count
+# Run: bash .github/scripts/weekly-review.sh
+
+set -euo pipefail
+ALERT_DAYS=7
+TODAY=$(date +%Y-%m-%d)
+
+for state_file in docs/teams/*_STATE.md; do
+  team=$(grep '^team:' "$state_file" | awk '{print $2}')
+  updated=$(grep '^updated:' "$state_file" | awk '{print $2}' | tr -d '"')
+  blocked=$(grep '^blocked_count:' "$state_file" | awk '{print $2}')
+
+  # Check staleness
+  days_old=$(( ($(date -d "$TODAY" +%s) - $(date -d "$updated" +%s)) / 86400 ))
+  if (( days_old > ALERT_DAYS )); then
+    echo "⚠ STALE: $team — last updated ${days_old}d ago ($updated)"
+  fi
+
+  # Check blocked
+  if (( blocked > 0 )); then
+    echo "🚧 BLOCKED: $team — ${blocked} task(s) blocked"
+  fi
+done
+```
+
+Dùng trong `.github/workflows/weekly-review.yml` (schedule: `0 2 * * 1` = Monday 02:00 UTC).
 
 ---
 
 ## Validation rules
 
-- `status` enum: `planned` | `in_progress` | `review` | `blocked`
+- `status` enum: `planned` | `in_progress` | `review` | `blocked` | `done`
 - `type` enum (blocker): `human_needed` | `waiting_dependency`
 - `updated` format: `YYYY-MM-DD`
 - **Consistency:** `active_count` = số task có `status: in_progress` hoặc `review`
 - **Consistency:** `blocked_count` = số task có `status: blocked`
-- Inconsistency giữa count và tasks list = update chưa đầy đủ.
+- Inconsistency giữa count và tasks list = file chưa update đầy đủ.
+
+**Adopt khi nào:** ≥3 team và muốn chạy automation cross-team. L1/L2 nhỏ — markdown-only đủ.
 
 ---
 
-## C-6 Tier-2 reference: cron automation
+## Migration guide (từ plain markdown STATE.md)
 
-Script đọc tất cả `docs/teams/*_STATE.md`, parse YAML front-matter, report ngoại lệ:
+Nếu đã có `docs/teams/<team>_STATE.md` dạng free prose:
 
-```bash
-#!/usr/bin/env bash
-# surface-blockers.sh — C-6 Tier-2 Automated Signal example
-# Trigger: cron hàng ngày. Action: human-act (không tự block).
-
-for f in docs/teams/*_STATE.md; do
-  python3 - << 'PY'
-import sys, yaml, re
-content = open("$f").read()
-if not content.startswith('---'):
-    sys.exit(0)
-try:
-    fm = yaml.safe_load(content.split('---')[1])
-except:
-    sys.exit(0)
-for b in fm.get('blockers', []):
-    emoji = '⚠️' if b['type'] == 'human_needed' else '⏳'
-    print(f"{emoji}  [{fm['team']}] {b['description']} (issue #{b['issue']})"
-PY
-done
-```
-
-Output này post vào GitHub Issue tổng hoặc Slack digest. Đây là Tier-2 canonical example: máy phát hiện (✓), human-act (không auto-block — đúng với blocker type).
+1. Thêm YAML block ở đầu file (trước mọi nội dung khác).
+2. Điền `team`, `updated` (ngày hôm nay), `updated_by` (branch hiện tại).
+3. Map tasks hiện tại → `tasks[]` array.
+4. Giữ nguyên phần body bên dưới (free prose sprint notes).
+5. Commit: `docs: add cairn-state YAML front-matter to <team>_STATE.md`
 
 ---
 
-## Migration từ markdown-only STATE.md
-
-1. Thêm YAML front-matter ở đầu file (trước hết mọi nội dung khác).
-2. Giữ nguyên markdown bên dưới — không breaking với agent đọc markdown.
-3. Update `active_count` + `blocked_count` + `tasks` list sau mỗi merge (cùng với bước refresh markdown bình thường).
-
-**Adopt khi nào:** khi bạn có ≥3 team và muốn chạy automation script đọc cross-team blocker. L1/L2 nhỏ — markdown-only đủ.
-
----
-
-*Cairn v0.7 template.*
+*Cairn v0.7. Schema có thể extend — thêm field vào cuối block, không xóa field hiện có.*
