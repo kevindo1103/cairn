@@ -1,0 +1,42 @@
+# Cairn First-Time Setup
+# Chạy thủ công sau khi tạo repo mới từ cairn template.
+# Tạo toàn bộ GitHub labels cần thiết cho C-4 Issues Bus.
+#
+# Usage: Actions tab → "Cairn First-Time Setup" → Run workflow
+
+name: Cairn First-Time Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Nhập "setup" để tạo labels'
+        required: true
+        default: ''
+
+jobs:
+  setup-labels:
+    name: Create Cairn Labels
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'setup'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup-labels.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/setup-labels.sh
+          bash scripts/setup-labels.sh
+
+      - name: Print next steps
+        run: |
+          echo "===================================="
+          echo "Cairn labels created."
+          echo ""
+          echo "Next steps:"
+          echo "1. Rename CLAUDE.md placeholders: run scripts/cairn-init.sh"
+          echo "2. Create docs-editor branch: claude/edit-git-docs-<id>"
+          echo "3. Spawn Training_Docs session on that branch"
+          echo "4. Read CAIRN_SETUP.md for full onboarding checklist"
+          echo "===================================="
