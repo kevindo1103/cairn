@@ -5,3 +5,4 @@ compatibility_date = "2024-10-01"
 [vars]
 SHOPIFY_STORE = "theviatea.myshopify.com"
 ALLOWED_ORIGIN = "https://theviatea.com"
+WORKER_URL = "https://pay-theviatea.khoa-do-vts.workers.dev"
