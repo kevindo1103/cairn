@@ -1,0 +1,7 @@
+name = "pay-theviatea"
+main = "src/worker.js"
+compatibility_date = "2024-10-01"
+
+[vars]
+SHOPIFY_STORE = "theviatea.myshopify.com"
+ALLOWED_ORIGIN = "https://theviatea.com"
