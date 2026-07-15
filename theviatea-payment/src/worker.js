@@ -39,18 +39,22 @@ async function shopifyAPI(env, method, endpoint, body) {
 
 // ── CORS ────────────────────────────────────────────────────────
 
-function corsHeaders(env) {
+function corsHeaders(env, request) {
+  const origin = request ? (request.headers.get('Origin') || '') : '';
+  const allowed = (env.ALLOWED_ORIGIN || '').split(',').map(s => s.trim());
+  allowed.push('https://theviatea.com', 'https://www.theviatea.com');
+  const match = allowed.includes(origin) ? origin : allowed[0];
   return {
-    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
+    'Access-Control-Allow-Origin': match,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 }
 
-function jsonResponse(data, env, status = 200) {
+function jsonResponse(data, env, status = 200, request = null) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders(env), 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(env, request), 'Content-Type': 'application/json' },
   });
 }
 
@@ -68,7 +72,7 @@ async function handleStartCheckout(request, env) {
   const totalPrice = body.total_price || items.reduce((s, i) => s + i.price * i.quantity, 0);
 
   const token = await createToken({ items, total_price: totalPrice }, env.JWT_SECRET);
-  return jsonResponse({ redirect: `/pay?token=${encodeURIComponent(token)}` }, env);
+  return jsonResponse({ redirect: `/pay?token=${encodeURIComponent(token)}` }, env, 200, request);
 }
 
 // ── GET /pay?token=xxx ──────────────────────────────────────────
@@ -378,7 +382,7 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders(env) });
+      return new Response(null, { status: 204, headers: corsHeaders(env, request) });
     }
 
     try {
@@ -396,7 +400,7 @@ export default {
       }
       return new Response('Not Found', { status: 404 });
     } catch (err) {
-      return jsonResponse({ error: err.message }, env, 500);
+      return jsonResponse({ error: err.message }, env, 500, request);
     }
   },
 };
