@@ -56,7 +56,7 @@ Nhiều session chạy song song → user phải relay tin thủ công, không s
 ### Sender
 1. Title: `[<TEAM>] <short summary>`
 2. Labels: 1 sender + 1+ recipient + 1-2 type (+ `status:planned` nếu task-assignment)
-3. Body: `## Context` + `## Plan` (task-assignment) + `## Ask` + `## Refs`
+3. Body: `## Context` + `## Plan` + `## Acceptance Criteria` (task-assignment) + `## Ask` + `## Refs`
 
 ### Recipient (Bước 0 kickoff)
 List issues `for:<my-team> state:open`, đọc body từng issue. Sau đó:
@@ -82,6 +82,11 @@ Body:
   3. Schema changes: <NONE / list>
   4. Test plan: <how to verify>
 
+  ## Acceptance Criteria (định nghĩa "done" — đo được, không mơ hồ)
+  - [ ] <vd: POST /x trả 200 payload hợp lệ, 403 sai role>
+  - [ ] <vd: UI khớp mockup §Y, mobile 375px không vỡ>
+  - [ ] Không regression: <screen/endpoint liên quan>
+
   ## Ask
   <cụ thể cần làm gì>
 
@@ -91,9 +96,15 @@ Body:
 
 **Dev confirm step (BẮT BUỘC trước code):**
 ```
-Confirmed plan. Branch: windsurf/<x> (forked from origin/main verified). ETA: <y>.
+Confirmed plan + AC. Branch: windsurf/<x> (forked from origin/main verified). ETA: <y>.
 ```
-Plan ambiguous → hỏi lead, KHÔNG code đoán.
+Plan/AC ambiguous → hỏi lead, KHÔNG code đoán.
+
+**AC rules (chống "done" bằng đoán — bổ trợ P-10):**
+- Lead viết AC **đo được** — "hoạt động tốt" là AC tồi; "trả 200 + record trong DB" là AC tốt.
+- Dev tự tick AC trong issue khi mở PR, kèm evidence (test output / screenshot / curl).
+- Lead review PR **đối chiếu từng AC** — tick hết mới merge. P-10 verify artifact *tồn tại*, AC verify artifact *đúng yêu cầu*.
+- AC không đạt được giữa chừng → dev comment đề xuất sửa AC, lead quyết. Dev KHÔNG tự nới AC.
 
 ## Pattern 2 — Lead → Lead relay
 Labels: `from:X` + `for:Y` + `relay`. Body: Context + Ask + Refs.
@@ -189,6 +200,11 @@ Frontend ShiftReview cần POST /operations/checkout endpoint...
 2. Files: backend/modules/operations/router.py, service.py, schemas.py
 3. Schema: CheckoutIn {ws_id, actual_end_time}, CheckoutOut {id, status}
 4. Test: curl POST /operations/checkout {ws_id: 1}
+
+## Acceptance Criteria
+- [ ] POST /operations/checkout trả 200 + CheckoutOut khi ws_id hợp lệ
+- [ ] 403 khi JWT không phải nhân viên của ws_id đó
+- [ ] docs/openapi.json đã regen trong cùng PR
 
 ## Ask
 Implement checkout endpoint per SRS §4.12.3
