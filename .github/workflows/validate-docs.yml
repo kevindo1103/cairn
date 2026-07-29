@@ -1,0 +1,23 @@
+# Cairn Docs Validate — chạy cairn-validate.sh trên mọi PR chạm *.md
+# C-6 Tier-2: broken cross-reference bị bắt tự động thay vì chờ Weekly Review.
+#
+# Adopting projects: sau khi bootstrap xong (hết {{PLACEHOLDER}}),
+# đổi lệnh chạy thành `--strict` để placeholder sót cũng fail.
+
+name: Cairn Docs Validate
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Check docs cross-references
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run cairn-validate
+        run: bash scripts/cairn-validate.sh

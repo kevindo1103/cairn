@@ -81,7 +81,7 @@ Mitigation:
 
 GitHub Issues + labels — sessions tự đọc inbox khi spawn. Chi tiết: `docs/SESSION_COMMS.md`.
 
-- Lead giao task: issue `from:<lead>` + `for:<dev>` + `task-assignment` + `status:planned` + body có `## Plan`.
+- Lead giao task: issue `from:<lead>` + `for:<dev>` + `task-assignment` + `status:planned` + body có `## Plan` + `## Acceptance Criteria` (định nghĩa "done" đo được — lead review PR đối chiếu từng AC, tick hết mới merge).
 - Lead → Lead relay: `from:X` + `for:Y` + `relay`.
 - Spec conflict → PM: `for:pm` + `spec-conflict`.
 - Blocker: `blocker:human-needed` (cần user) vs `blocker:waiting-dependency` (track only).

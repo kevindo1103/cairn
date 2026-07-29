@@ -43,7 +43,9 @@ Cairn = bộ protocol + template + workflow giải quyết 4 cái trên bằng p
 | **Bootstrap script** ★ v0.7 | `scripts/cairn-init.sh` | One-shot init: tạo dirs, placeholders, settings hook |
 | **CI gate** | `.github/workflows/pr-quality-gate.yml` | Quality gate per PR |
 | **Observability** | `.github/workflows/weekly-review.yml` | Cron audit kanban health |
-| **Issue templates** | `.github/ISSUE_TEMPLATE/` | 4 template khớp Cairn comms pattern |
+| **Docs validate** ★ v0.7.1 | `scripts/cairn-validate.sh` + `.github/workflows/validate-docs.yml` | Bắt broken cross-ref + placeholder sót trong *.md (C-6 Tier-2). Adopting project chạy `--strict` |
+| **Security baseline** ★ v0.7.1 | `docs/SECURITY_BASELINE.md` | SEC-01→35 + Pre-Delivery Security Checklist — chuẩn bàn giao khách hàng |
+| **Issue templates** | `.github/ISSUE_TEMPLATE/` | 4 template khớp Cairn comms pattern (task-assignment có Acceptance Criteria từ v0.7.1) |
 | **Labels** | `scripts/setup-labels.sh` | GitHub labels (gồm `cairn-learning`) |
 
 **Canonical docs** (BRD/SRS/Glossary/PROJECT_PLAN) — Cairn cung cấp skeleton, **nội dung viết riêng per project**.
