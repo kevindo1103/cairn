@@ -51,3 +51,20 @@ evidence and resume-after-compaction readback.
 Implementation handoff: the Cairn platform owner should bind this existing SQLite package through a
 single adapter/dispatcher and explicit permissions, then run the negative-test matrix. This document
 adds no deploy gate and does not claim the adapter exists.
+
+## Readiness and cutover checklist
+
+- [ ] Ledger owner links the reviewed standalone package/adapter PR and exact source/test head.
+- [ ] Negative tests pass for busy retention, send failure/restart, duplicate event, stale approval,
+  missing ACK, blocked recipient, successful handoff and duplicate-writer prevention.
+- [ ] Automatic wake status and permissions are recorded honestly; no wake guarantee is inferred.
+- [ ] Every unfinished ERP task has an old→new handoff with successor ACK; no invented replacement ID.
+- [ ] PM confirms cutover readiness only after package review/test and successor ACK; PM archives last.
+- [ ] Production remains independent and is not blocked by this Cairn preparation.
+
+### Old → new handoff template
+
+`old_task_id | old_role | old_worktree/branch/PR | unfinished_checkpoint | successor_task_id (TBD until created) | successor_owner | rule/model/effort | authority | evidence | successor_ACK | archive_status`
+
+An empty successor field means `TBD`, not complete. Preserve blocked/unverified work and all linked
+history until the successor has acknowledged the checkpoint.
