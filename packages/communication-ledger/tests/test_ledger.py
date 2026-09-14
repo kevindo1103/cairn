@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
 
-from comms_ledger import Ledger, LedgerError
+from comms_ledger import Ledger, LedgerError, __version__
 from comms_ledger.transport import prepare_manual
 
 
@@ -32,6 +32,9 @@ def process_claim(path, barrier, results):
 
 
 class LedgerTests(unittest.TestCase):
+    def test_package_version_contract(self):
+        self.assertEqual(__version__, "0.1.0")
+
     def setUp(self):
         (ROOT / "work").mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(dir=ROOT / "work")
