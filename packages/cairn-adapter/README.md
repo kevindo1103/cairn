@@ -5,7 +5,10 @@ MCP registration, dispatcher process, hook, installation, activation, authority 
 task creation or retirement is performed. No ERP files or runtime data are used.
 
 This separate PR owns only `packages/cairn-adapter/**`. Its provisional parent is PR #9
-at `c496cc5690ba4e1e2825fe07aa6b2d2f6ad2572f`, communication-ledger version `0.1.0`.
+at `7547585dde2cd5772ab29f125f49ddfe957e07e4`, communication-ledger version `0.1.0`.
+This includes main bootstrap `41253612d633cbf46269acb21ee94f90cf490f80`.
+Reconciliation found an identical complete Git tree and identical package module hashes
+relative to the previous package checkpoint; the ledger lifecycle is unchanged.
 The exact package Git tree and LF-normalized Python source hashes are pinned in
 `cairn_adapter/package.lock.json`. Construction and every request refuse different
 package content. Final acceptance is PENDING the accepted package version/tag,

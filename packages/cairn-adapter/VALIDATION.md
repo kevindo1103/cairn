@@ -1,5 +1,8 @@
 # Issue #10 validation — 2026-09-14
 
+This is the initial checkpoint record. Current base/reconciliation and terminal test
+evidence are recorded in RECONCILIATION.md; the original counts below remain historical.
+
 - Owner task: `01a08774-2524-7553-b951-35e9ce8de283` (Codex_Ledger).
 - Branch: `codex/cairn-principal-adapter`.
 - Exact provisional base: `c496cc5690ba4e1e2825fe07aa6b2d2f6ad2572f` (PR #9).
