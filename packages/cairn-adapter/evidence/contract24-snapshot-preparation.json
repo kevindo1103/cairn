@@ -1,0 +1,43 @@
+{
+  "rows": [
+    {
+      "candidate": {
+        "issue": "https://github.com/kevindo1103/cairn/issues/10",
+        "task_id": "01a08774-2524-7553-b951-35e9ce8de283",
+        "session_id": null,
+        "role": "Ledger adapter owner",
+        "owner": "Codex_Ledger",
+        "worktree": null,
+        "branch": "codex/cairn-principal-adapter",
+        "pr": null,
+        "base": "f31726234c43c2ded4716c0998a8e4475ad25c19",
+        "head": null,
+        "checkpoint": null,
+        "unfinished_work": [
+          "independent adapter QC",
+          "publication",
+          "PM succession package decision"
+        ],
+        "blocker": "Identity and runtime evidence are not verified by this candidate projection",
+        "successor": null,
+        "successor_ack": null,
+        "runtime_evidence": null,
+        "evidence": "https://github.com/kevindo1103/cairn/issues/10"
+      },
+      "gaps": [
+        "checkpoint",
+        "head",
+        "pr",
+        "session_id",
+        "worktree",
+        "successor/ACK/runtime evidence unverified"
+      ],
+      "trusted_identity": false
+    }
+  ],
+  "status": "PREPARATION_ONLY",
+  "authority_effect": false,
+  "actions_executed": [],
+  "AdapterAccepted": "NOT_PROVEN",
+  "RecoveryProven": "NOT_PROVEN"
+}
