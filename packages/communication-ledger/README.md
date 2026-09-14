@@ -8,7 +8,7 @@ Local integration update: the user-authorized `communication-ledger-local` stdio
 
 ## Run locally
 
-Use Python 3.11 or newer. This delivery was tested on Windows with Python 3.14.3. Run commands from this `outputs` repository. Nothing requires a global installation.
+Use Python 3.11 or newer. This delivery was tested on Windows with Python 3.14.3. Run commands from this package directory. Nothing requires a global installation.
 
 ```powershell
 # Standard-library CLI and core tests need no installation.
@@ -21,7 +21,7 @@ python -m venv .venv
 .venv/Scripts/python -m unittest discover -v
 ```
 
-The delivered `.venv` already has MCP 2.2.0 installed. `requirements-mcp-windows.lock` captures all versions used for the Windows verification; reproduce it with `.venv/Scripts/python -m pip install -r requirements-mcp-windows.lock`. It is a version snapshot, not a hash-verified or cross-platform lock. Core runtime has no third-party dependencies.
+`requirements-mcp-windows.lock` captures the optional MCP verification versions; reproduce it with `.venv/Scripts/python -m pip install -r requirements-mcp-windows.lock`. It is a version snapshot, not a hash-verified or cross-platform lock. Core runtime has no third-party dependencies.
 
 All automated tests and the demo use temporary **synthetic** databases inside `work/` and clean them up. They do not contact real tasks. `python -m unittest discover` without the optional SDK reports the MCP test as skipped; that is not MCP proof. The full delivered verification uses `.venv/Scripts/python` with no skips.
 

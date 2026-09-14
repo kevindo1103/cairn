@@ -341,6 +341,17 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(bad.returncode, 2)
         self.assertEqual(bad.stdout, "")
 
+    def test_schema_version_mismatch_fails_closed(self):
+        self.ledger = None
+        db = sqlite3.connect(self.path)
+        try:
+            db.execute("UPDATE config SET value='0' WHERE key='schema_version'")
+            db.commit()
+        finally:
+            db.close()
+        with self.assertRaises(LedgerError):
+            Ledger(self.path)
+
 
 if __name__ == "__main__":
     unittest.main()

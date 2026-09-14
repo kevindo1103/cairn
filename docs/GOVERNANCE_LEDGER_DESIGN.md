@@ -39,6 +39,11 @@ archived last. GitHub remains technical decision truth; the ledger tracks delive
 | Negative tests (busy, failure/restart, duplicate, stale approval, missing ACK, blocked, handoff) | Package tests/validation exist; Cairn adapter acceptance NOT_RUN |
 | Cairn integration adapter/permissions | PROPOSED / NOT_PROVEN |
 
+`BLOCKED` is a durable projection for exhausted delivery attempts, expired worker
+leases, or an explicit blocker. It requires reconciliation; it is not an implicit retry
+or activation signal. The event ledger is the delivery/execution truth; any UI or
+dashboard is a projection and must not edit ledger history directly.
+
 ## Resource policy and registry template
 
 Select the smallest adequate model/effort by risk, not title; escalate only after a measured failure
@@ -60,6 +65,8 @@ adds no deploy gate and does not claim the adapter exists.
 - [ ] Automatic wake status and permissions are recorded honestly; no wake guarantee is inferred.
 - [ ] Every unfinished ERP task has an old→new handoff with successor ACK; no invented replacement ID.
 - [ ] PM confirms cutover readiness only after package review/test and successor ACK; PM archives last.
+- [ ] `HANDOFF_COMPLETED` is necessary but insufficient for retirement: successor active generation is
+  verified, predecessor is quiesced, and the predecessor queue is drained to zero.
 - [ ] Production remains independent and is not blocked by this Cairn preparation.
 
 ### Old → new handoff template

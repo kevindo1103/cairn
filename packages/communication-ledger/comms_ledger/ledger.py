@@ -18,6 +18,7 @@ TERMINAL = {"COMPLETED", "BLOCKED", "CANCELLED", "SUPERSEDED"}
 FIELDS = {"dedupe_key", "source_task", "target_task", "issue", "checkpoint",
           "base", "head", "scope", "kind", "priority", "dependency",
           "evidence", "next_action"}
+EXPECTED_SCHEMA_VERSION = "1"
 
 
 class LedgerError(ValueError):
@@ -99,6 +100,9 @@ class Ledger:
                 db.execute("INSERT INTO config VALUES ('schema_version', '1')")
             elif pm_task is not None and row[0] != pm_task:
                 raise LedgerError("pm_task is already bound to this database")
+            schema = db.execute("SELECT value FROM config WHERE key='schema_version'").fetchone()
+            if schema is None or schema[0] != EXPECTED_SCHEMA_VERSION:
+                raise LedgerError("unsupported schema_version; migration is required")
             db.commit()
 
     def _connect(self):
