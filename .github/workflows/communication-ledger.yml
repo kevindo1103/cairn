@@ -1,0 +1,38 @@
+name: Communication ledger
+
+on:
+  pull_request:
+    paths:
+      - 'packages/communication-ledger/**'
+      - '.github/workflows/communication-ledger.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/communication-ledger/**'
+      - '.github/workflows/communication-ledger.yml'
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/communication-ledger
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -v
+
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/communication-ledger
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[mcp]'
+      - run: python -m unittest discover -v
