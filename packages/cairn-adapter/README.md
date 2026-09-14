@@ -1,128 +1,126 @@
-# Cairn principal adapter — issue #10
+# Cairn adapter — canonical 24-case contract
 
-Review-only Python library on the existing communication-ledger package. No server,
-MCP registration, dispatcher process, hook, installation, activation, authority flip,
-task creation or retirement is performed. No ERP files or runtime data are used.
+Review-only library for issue #10. Base main/package merge:
+`f31726234c43c2ded4716c0998a8e4475ad25c19`; package version `0.1.0`, tag
+`communication-ledger-v0.1.0`, annotated object
+`065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f`. The package tree remains
+`d21f0346b18f01f0bab41566200db88b6ac78d3a`. Only `packages/cairn-adapter/**`
+is owned by this branch. No core lifecycle/schema changes or second store.
 
-This separate PR targets main and owns only `packages/cairn-adapter/**`. Its accepted
-package base is `f31726234c43c2ded4716c0998a8e4475ad25c19`, communication-ledger
-version `0.1.0`, annotated tag `communication-ledger-v0.1.0` (tag object
-`065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f`). PR #9 is merged. Package tree and
-module hashes are identical to the prior checkpoint; the ledger lifecycle is unchanged.
-The exact package Git tree and LF-normalized Python source hashes are pinned in
-`cairn_adapter/package.lock.json`. Construction and every request refuse different
-package content. Package binding is now accepted/versioned; independent adapter QC
-remains pending. No dependency is silently upgraded. See ACCEPTED_PACKAGE.md for
-the current exact base/head and zero-skip evidence.
+Current contract: this README, MATRIX24.md and CONTRACT24_VALIDATION.md. Older
+VALIDATION.md, RECONCILIATION.md and ACCEPTED_PACKAGE.md are historical checkpoints.
 
-## Trust boundary
+## Trust and authorization
 
-The integrating host must own the process, interpreter/import path, executables,
-canonical project root, SQLite DB, package lock and credentials. Workers may only call
-the narrow `Adapter.execute` interface over a future authenticated host boundary.
-They must not receive a Store, Owner, verifier object, database path/access, interpreter
-access in the host, or the raw ledger CLI/MCP. Direct Python/file access bypasses this
-facade; preventing that is NOT_PROVEN and is a prerequisite for any later deployment.
-No host authentication transport is installed or claimed by this change.
+The host must protect the interpreter, imported code/package lock, Git/GitHub
+executables, canonical project root, database and credentials. Workers may receive
+only a remote facade to Adapter.execute; never Store/Owner/verifier objects, host
+interpreter access, database permissions or raw ledger CLI/MCP. This source package
+installs no such transport. Principal enforcement remains NOT_PROVEN until the actual
+host identity boundary is independently accepted. A missing/unavailable host identity
+resolver refuses requests; credentials must match external host task/session/generation
+and the separately owned canonical registry. The synthetic resolver in tests is not
+proof of a real host identity provider.
 
-Worker requests contain a bearer credential, exact principal generation, registry
-revision, scope, command and allowlisted arguments. The credential hash resolves a
-single canonical identity; an `actor`, registry, verifier or checkpoint supplied in
-arguments is rejected. Generate credentials with at least 256 random bits in the host;
-the fixed tokens in tests are synthetic only. Logs/read models never return credentials.
+Registry records require project/repository, task/session ID, generation, role, scopes,
+authority/grants, worktree, branch, rule/config version, pending/active/quiesced/retired
+state, parent, owner, expected output, stop condition, successor, quiescence and a full
+handoff inventory. Owner.replace requires a distinct owner credential, exact revision
+CAS and append-only audit. A principal cannot supply its actor, registry, role, scope,
+generation authority or verifier through command arguments. Generation/credential
+rotation is monotonic. Owner CAS cannot activate a pending successor, resurrect a
+quiesced/retired predecessor or silently delete records. Bootstrap is for a new TEST
+project only. Existing older adapter metadata is refused, not silently migrated.
 
-The distinct Owner interface authenticates a separate owner credential and applies
-complete registry snapshots using CAS. A worker credential cannot write the registry
-or overlap the owner credential. Identity rotation increments its generation exactly
-once, and every registry edit increments the global revision. Credentials, task IDs
-and successor assignments must be unique; stale generations, successor cycles and
-silent deletion of old records fail closed. The configured PM identity is preserved.
-ACTIVE/QUIESCED are owner-observed registry facts, not a new event workflow.
+ACL combines authenticated principal, command, literal scope, canonical event state
+and generation. Role restrictions are additional ceilings: workers/QC/Docs/Infra only
+mutate their own target; PM-only STOP, urgent/cross-team priority, release, flip and
+retirement cannot be obtained through an overbroad worker grant. A pending successor
+may process only its own HANDOFF readback/ACK/start/complete. It cannot acquire normal
+work. Quiesced, retired and stale generations reject. Owner and PM are distinct powers:
+PM control operations additionally require a separate host owner's exact attestation.
 
-Both registry CAS and `principal x command x scope x state` checks share the same
-`BEGIN IMMEDIATE` transaction as package mutations. The small TransactionLedger shim
-only supplies that transaction to existing ledger methods; no event transition is
-reimplemented. Registry/provenance/reconciliation metadata use the existing config
-table; the ledger's history records their audit digests. There is one fixed
-`ledger.sqlite` under the host-bound project root; requests cannot select another DB.
-The host must maintain a single canonical root per project. Recovery copies are offline.
+## Fresh source and full handoff evidence
 
-## Fresh authority and lifecycle
+Each request freshly resolves the owner-bound repository, worktree/branch, local and
+remote exact base/head/tree, manifest/rule hashes, rule/config versions, complete path
+inventory and GitHub plan decisions. Every changed/renamed path must fit the literal
+path cap. Missing/unreachable/ambiguous evidence fails closed. Authority and mutation
+share the same SQLite transaction with registry CAS. The package's timeout maintenance
+is rolled back if it crosses the authorized scope or event-state grant. External GitHub
+and filesystem changes cannot be atomically fenced by SQLite; that remains NOT_PROVEN.
 
-For every command, GitHubVerifier reads the owner-bound worktree and GitHub repository,
-PR and plan issue. It checks exact local/remote base and head, tree, branch, remote URL,
-clean worktree, complete changed-path inventory, manifest/rule SHA-256, rule/config
-versions and plan body digest. All changed and renamed paths must lie in allowed roots.
-The base must be an ancestor of the head; divergent bases conservatively fail closed.
-It rechecks local/remote heads and plan at the end. Missing credentials, network,
-objects, paths or malformed/ambiguous responses reject the operation. There is no cache
-or caller-reported checkpoint fallback. A checkpoint is derived from the verified
-binding and written only by a principal explicitly granted checkpoint authority.
+Existing ledger states remain QUEUED -> SENT -> ACKED -> STARTED -> COMPLETED, with
+terminal BLOCKED/CANCELLED/SUPERSEDED attempts. SENT records dispatcher receipt only.
+ACK, START and COMPLETED require current durable principal reconciliation. Full HANDOFF
+completion also requires complete predecessor/successor inventories, exact readback
+of unfinished work/PRs/issues/blockers, matching canonical task/event/status evidence,
+and no omitted unfinished ledger work. GitHub PR/issue body/state/head references are
+freshly rechecked. An authenticated PM can read handoff_review; a separately authorized
+host owner attests its full digest. Caller completion evidence must match that exact
+attestation. Changes in identity, registry revision, checkpoint, Git/rules, work or
+readback invalidate the proof. Ordinary non-HANDOFF package events retain core semantics.
 
-GitHub reads use the host's GitHub CLI through argument arrays, an explicit github.com
-hostname and bounded subprocess timeouts. Local Git does not run external diff/textconv.
-Verification holds the DB writer lock; this favors safety over throughput. It proves
-observations at command time, not an atomic transaction with GitHub or filesystem/process
-fencing. Fork PRs, multiple origin URLs and paths outside the allowlist are rejected.
+## Logical transition prototype and the PM core STOP
 
-The existing lifecycle remains `QUEUED -> SENT -> ACKED -> STARTED -> COMPLETED`, with
-terminal `BLOCKED`, `CANCELLED`, `SUPERSEDED` attempts. Queue selection remains the
-package's priority/dependency/busy arbitration. A claim for a different event rolls back.
-Package timeout maintenance that would mutate another scope or a disallowed state also
-rolls back; separately trusted host recovery is then required. Source/recipient generation
-and credential ownership fence ledger tokens. Quiesced topology cannot acquire delivery
-or work. Existing active work is not magically stopped by a bookkeeping transition.
+Only synthetic tests invoke the control prototype. No external session API, task
+creation, process activation, archive or production operation is called. Control methods
+return actions_executed=[] and external_authority_effect=false.
 
-`sent` records the authenticated dispatcher's transport receipt, never a worker ACK.
-Receipt truthfulness must be attested by the trusted transport host; arbitrary receipt
-URLs do not prove external delivery. `reconcile` records a fresh recipient/event digest,
-checkpoint revision, principal generation and registry revision. ACK requires that
-exact durable reconciliation, so stale policy, binding or principal identity cannot
-reuse it. ACK/start/complete must belong to the authenticated recipient/worker owner.
+The PM-only authority_flip command requires a pending mapped successor, completed
+reviewed HANDOFF, quiesced predecessor, zero drain and separate host attestation. One
+SQLite transaction increments both generations, activates the successor and records
+old-generation provenance permanently. The predecessor stays quiesced. PM-only retire
+additionally checks the active successor generation and writes retired logically; it
+never archives a session. Old tokens/generations and resurrection through Owner CAS
+are rejected. Source work/rules/inventory changes invalidate completed-handoff eligibility.
 
-`BLOCKED` remains terminal; a dashboard's resumable `blocked` label cannot reactivate
-it. Reconciliation needs a new ledger event. Expired workers keep active slots until
-the separate trusted host verifies they stopped; no worker-facing release operation
-is exposed. Automatic wake is NOT_IMPLEMENTED. Filesystem/process fencing is NOT_PROVEN.
+RETIRE_ALLOWED = HANDOFF_COMPLETED && successor ACTIVE generation && predecessor
+QUIESCED && drain ZERO. Drain covers active mutations, every lease/retained slot,
+undelivered handoff, unmapped unfinished work and host-observed ownership ambiguity.
+Unknown values cannot count as zero. Conservatively, historical non-COMPLETED ledger
+attempts keep drain nonzero even if listed in an inventory; no unreviewed work-remapping
+rule is invented. PM-last assessment checks all other registry-mapped predecessors.
 
-## Retirement and recovery
+Completion before quiescence is permitted by the required HANDOFF-then-quiesce order;
+it does not authorize flip/retirement. Case 21 verifies refusal before quiescence and
+with nonzero ambiguity. Filesystem/process quiescence still needs external proof.
 
-`retirement` is a read-only assessment of completed HANDOFF, the exact ACTIVE successor
-generation, QUIESCED predecessor and drain ZERO. Drain includes active mutations and
-unmapped work observed by the separate host, plus all unfinished relevant events,
-retained recipient slots, delivery/worker leases and undelivered handoffs in the ledger.
-The predecessor's successor mapping must match. PM eligibility additionally requires
-all registry-mapped non-PM predecessors to satisfy their full retirement conditions.
-Ambiguous multiple old PM mappings refuse eligibility. Old BLOCKED/unmapped events
-conservatively keep drain nonzero; this adapter does not invent a work-remapping authority.
+STOP: core v0.1.0 permanently binds pm_task. PM succession/retirement cannot be enabled
+by silently rewriting that key. The prototype explicitly refuses it. See
+PM_CORE_CHANGE_PROPOSAL.md for a separately reviewed, version-bumped package proposal.
+That package change has NOT been implemented; full PM migration acceptance is blocked.
 
-Every assessment returns `actions_executed=[]` and `retirement_authorized=false`, even
-when the four-part eligibility invariant is true. Host quiescence reports are separate
-authority assertions; real process-stop proof is NOT_PROVEN. Production acceptance,
-complete migration inventory, package acceptance and PM/user cutover authorization
-remain separate prerequisites. No eligibility result flips authority or archives tasks.
+## Recovery and preparation
 
-`recovery.backup` uses SQLite's backup API while holding a stable read snapshot, including
-uncheckpointed WAL. It compares complete logical tables, schema/indexes/triggers, config
-and PM/project binding, checkpoints/revisions, event history, receipts, slots, terminal
-states, credential/provenance metadata, digest and history high-water mark. Proof exposes
-counts/digests, not tokens. `restore` requires the independently retained exact proof
-and matching project, copies only into a new `ledger.sqlite`, and refuses an existing
-destination. It never restores over a live DB or makes a backup an active project.
-After real recovery, old claims and external workers still require host reconciliation;
-restoring a file alone cannot safely revoke external work or prevent history rollback.
+One fixed ledger.sqlite under the host-selected project root stores the existing ledger
+plus adapter config metadata; requests cannot select another DB. The host must maintain
+one canonical root per project. SQLite backup API copies a stable read snapshot including
+WAL. Restore only writes a new offline destination after exact proof comparison; never
+an existing/live DB. Proof covers schema, accepted package/PM/config binding, registry
+revision/generations, checkpoints/revisions, events, high-water mark, history, receipts,
+slots, terminal statuses, HANDOFF and a complete logical digest. Tests reopen the restored
+DB, reconcile and finish execution. Local recovery drill PASS does not close production
+RecoveryProven or stop external workers. Never replay a backup as active authority without
+separate reconciliation/authorization.
 
-## Validation
+snapshot_prep.py reads candidate JSON only. Missing task/session/worktree/checkpoint,
+successor/ACK or runtime evidence becomes an explicit gap. All rows remain untrusted
+projection candidates even when filled. No successor ID is generated, no Store is opened,
+and no GitHub projection becomes registry authority. The example includes one known old
+task ID and null unknowns; it is not the full ERP inventory. TEAM_STATE projection mismatch
+warns and never changes ledger truth; ledger BLOCKED stays terminal even if the UI has a
+resumable blocked label.
 
-From the Cairn checkout, with Python 3.11+ and Git available:
+Run without installation from the Cairn checkout:
 
-```text
-python packages/cairn-adapter/run_tests.py
-```
+    python packages/cairn-adapter/run_tests.py
+    python packages/cairn-adapter/snapshot_prep.py packages/cairn-adapter/examples/migration-candidates.json
 
-No install, network, MCP service, existing project DB or GitHub write is used by tests.
-The runner imports the sibling pinned package and fails on any skip.
-The 16 named groups are mapped in MATRIX.md; additional tests cover transaction CAS
-races, cross-scope timeout effects, freeze, PM-last, dependency drift and real local Git.
-GitHub responses in verifier tests are explicit fixtures, not live GitHub E2E evidence.
-See ACCEPTED_PACKAGE.md for exact environment, results and pending adapter QC.
+The runner fails on skipped tests. See MATRIX24.md for the 24 named groups and additional
+checks; GitHub verifier tests use explicit fixtures with real local Git. Actual host
+identity, live adapter GitHub E2E and filesystem/process fencing remain NOT_PROVEN.
+Automatic wake and automatic transport are NOT_IMPLEMENTED. AdapterAccepted and real
+RecoveryProven remain NOT_PROVEN pending independent review. Live activation, authority
+flip, successor creation, retirement, archive, merge and ERP production mutation are
+NOT_AUTHORIZED. Publication is Draft PR only if environment permissions permit it.

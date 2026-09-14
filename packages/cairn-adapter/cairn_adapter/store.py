@@ -81,6 +81,9 @@ class Store:
                 raise Rejected("Unsupported ledger schema")
             if get_config(db, "project") != self.project:
                 raise Rejected("Project/database binding mismatch")
+            from .package import verify_package
+            if get_config(db, "package") != verify_package() or get_config(db, "registry_schema") != 2:
+                raise Rejected("Unsupported package or adapter registry schema; no implicit migration")
             yield db, TransactionLedger(db, self.path, self.clock)
             db.commit()
         except BaseException:
@@ -92,6 +95,8 @@ class Store:
     @classmethod
     def initialize(cls, project_root, project, pm_task, owner_token, *, clock=time.time):
         """Trusted host bootstrap for a NEW TEST project. Never exposed to principals."""
+        from .package import verify_package
+        package = verify_package()
         path = Path(project_root).resolve() / "ledger.sqlite"
         path.parent.mkdir(parents=True, exist_ok=True)
         # O_EXCL prevents concurrent/repeated bootstrap from rebinding existing data.
@@ -102,12 +107,15 @@ class Store:
             put_config(db, "project", project)
             put_config(db, "owner_hash", credential_hash(owner_token))
             put_config(db, "registry", {"revision": 0, "entries": []})
+            put_config(db, "registry_schema", 2)
+            put_config(db, "package", package)
         return cls(project_root, project, clock=clock)
 
 
 COMMANDS = {"checkpoint", "enqueue", "claim", "sent", "delivery_failed", "reconcile",
             "ack", "start", "renew", "complete", "terminate", "inspect_retry",
-            "override_priority", "set_busy", "get", "retirement"}
+            "override_priority", "set_busy", "get", "retirement", "handoff_review",
+            "authority_flip", "retire", "release_stopped_worker", "snapshot_prep", "projection"}
 STATES = {"ABSENT", "QUEUED", "SENT", "ACKED", "STARTED", "COMPLETED", "BLOCKED",
           "CANCELLED", "SUPERSEDED"}
 
@@ -118,7 +126,9 @@ def validate_entries(entries, previous, owner_hash):
     tasks, credentials, successors = set(), set(), set()
     old = {e["task_id"]: e for e in previous}
     fields = {"task_id", "credential_hash", "generation", "state", "grants", "bindings",
-              "successor", "quiescence", "role"}
+              "successor", "quiescence", "role", "project", "session_id", "scopes", "authority",
+              "worktree", "branch", "rule_version", "config_version", "parent", "owner",
+              "expected_output", "stop_condition", "inventory"}
     for entry in entries:
         if not isinstance(entry, dict) or set(entry) != fields:
             raise Rejected("Unexpected registry fields")
@@ -131,17 +141,46 @@ def validate_entries(entries, previous, owner_hash):
             raise Rejected("Duplicate credential or owner/principal authority overlap")
         if type(generation) is not int or generation < 1:
             raise Rejected("Invalid principal generation")
-        if entry["state"] not in {"ACTIVE", "QUIESCED"}:
+        if entry["state"] not in {"pending", "active", "quiesced", "retired"}:
             raise Rejected("Unknown registry state")
+        if entry["role"] not in {"PM", "Lead", "worker", "QC", "Docs", "Infra"}:
+            raise Rejected("Unknown canonical role")
+        for key in ("project", "session_id", "worktree", "branch", "rule_version", "config_version",
+                    "owner", "expected_output", "stop_condition"):
+            if not isinstance(entry[key], str) or not entry[key].strip():
+                raise Rejected("Incomplete registry trust root: " + key)
+        if entry["parent"] is not None and not isinstance(entry["parent"], str):
+            raise Rejected("Invalid registry parent")
         if task in old:
             prior = old[task]
             rotated = credential != prior["credential_hash"]
             if generation != prior["generation"] + int(rotated):
                 raise Rejected("Credential rotation must increment principal generation exactly once")
+            allowed = {"pending": {"pending"}, "active": {"active", "quiesced"},
+                       "quiesced": {"quiesced"}, "retired": {"retired"}}
+            if entry["state"] not in allowed[prior["state"]] or (
+                    prior["state"] == "retired" and entry != prior):
+                raise Rejected("Owner CAS cannot bypass flip/retirement or resurrect a predecessor")
         elif generation != 1:
             raise Rejected("New principal starts at generation one")
+        elif previous and entry["state"] != "pending":
+            raise Rejected("New successors must enter pending")
         if not isinstance(entry["bindings"], dict) or not isinstance(entry["grants"], list):
             raise Rejected("Invalid bindings/grants")
+        if sorted(entry["scopes"]) != sorted(entry["bindings"]) or sorted(entry["authority"]) != sorted(
+                {g["command"] for g in entry["grants"]}):
+            raise Rejected("Scope/authority projections disagree with canonical grants")
+        for binding in entry["bindings"].values():
+            if any(binding.get(k) != entry[k] for k in ("worktree", "branch", "rule_version", "config_version")):
+                raise Rejected("Registry and source binding disagree")
+            if binding.get("repository") != entry["project"]:
+                raise Rejected("Repository identity differs from project")
+        inventory = entry["inventory"]
+        if not isinstance(inventory, dict) or set(inventory) != {"complete", "unfinished_work", "prs", "issues", "blockers", "readback_digest"}:
+            raise Rejected("Missing canonical handoff inventory")
+        if type(inventory["complete"]) is not bool or any(not isinstance(inventory[k], list)
+                for k in ("unfinished_work", "prs", "issues", "blockers")):
+            raise Rejected("Invalid canonical handoff inventory")
         for grant in entry["grants"]:
             if (set(grant) != {"command", "scope", "states"} or grant["command"] not in COMMANDS
                     or grant["scope"] not in entry["bindings"] or not grant["states"]
@@ -154,10 +193,10 @@ def validate_entries(entries, previous, owner_hash):
                 raise Rejected("Duplicate or invalid successor")
             successors.add(successor["task_id"])
         q = entry["quiescence"]
-        if q is not None and (set(q) != {"evidence", "active_mutations", "unmapped_work"}
+        if q is not None and (set(q) != {"evidence", "active_mutations", "unmapped_work", "ownership_ambiguity"}
                              or not isinstance(q["evidence"], str) or not q["evidence"]
                              or any(type(q[k]) is not int or q[k] < 0
-                                    for k in ("active_mutations", "unmapped_work"))):
+                                    for k in ("active_mutations", "unmapped_work", "ownership_ambiguity"))):
             raise Rejected("Invalid trusted-host quiescence observation")
         tasks.add(task)
         credentials.add(credential)
@@ -165,7 +204,11 @@ def validate_entries(entries, previous, owner_hash):
     if not set(old) <= tasks:
         raise Rejected("Keep quiesced predecessor records; deletion is not retirement")
     by_task = {e["task_id"]: e for e in entries}
+    if len({e["session_id"] for e in entries}) != len(entries):
+        raise Rejected("Duplicate session identity")
     for entry in entries:
+        if entry["parent"] is not None and (entry["parent"] not in by_task or entry["parent"] == entry["task_id"]):
+            raise Rejected("Missing or self-referencing parent")
         s = entry["successor"]
         if s and (s["task_id"] not in by_task or by_task[s["task_id"]]["generation"] != s["generation"]):
             raise Rejected("Unknown or stale successor generation")
@@ -192,6 +235,8 @@ class Owner:
             if type(expected_revision) is not int or registry["revision"] != expected_revision:
                 raise Rejected("Registry CAS moved")
             validate_entries(entries, registry["entries"], owner_hash)
+            if any(e["project"] != self.store.project for e in entries):
+                raise Rejected("Registry project differs from canonical database")
             pm_task = db.execute("SELECT value FROM config WHERE key='pm_task'").fetchone()[0]
             if [e["task_id"] for e in entries if e["role"] == "PM"] != [pm_task]:
                 raise Rejected("Registry must preserve the ledger's unique PM identity")
@@ -200,3 +245,22 @@ class Owner:
             ledger._audit(db, None, "registry-owner", "REGISTRY_CAS",
                           {"revision": result["revision"], "digest": digest(result)})
             return {"revision": result["revision"]}
+
+    def attest(self, token, expected_revision, event_id, command, review_digest, evidence):
+        """Separate host approval of a reviewed snapshot; never callable by a worker."""
+        from comms_ledger.ledger import evidence_ref
+        if command not in {"complete", "authority_flip", "retire", "release_stopped_worker"}:
+            raise Rejected("Unknown host attestation")
+        evidence_ref(evidence)
+        if not isinstance(review_digest, str) or len(review_digest) != 64:
+            raise Rejected("Require full reviewed-snapshot digest")
+        with self.store.transaction() as (db, ledger):
+            if not hmac.compare_digest(credential_hash(token), get_config(db, "owner_hash")):
+                raise Rejected("Separate host owner approval required")
+            if type(expected_revision) is not int or get_config(db, "registry")["revision"] != expected_revision:
+                raise Rejected("Stale attestation revision")
+            ledger._get(db, event_id)
+            record = {"revision": expected_revision, "digest": review_digest, "evidence": evidence}
+            put_config(db, "attest:" + command + ":" + event_id, record)
+            ledger._audit(db, event_id, "registry-owner", "HOST_ATTESTED", {"command": command, **record})
+            return record

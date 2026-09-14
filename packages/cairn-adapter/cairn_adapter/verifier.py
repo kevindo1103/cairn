@@ -42,6 +42,27 @@ class GitHubVerifier:
             # Do not copy tool output, environment, credentials or HTTP headers to logs.
             raise Rejected("Fresh Git/GitHub verification unavailable") from exc
 
+    def verify_references(self, prs, issues):
+        """Freshly check full inventory decision references, supplied by the host registry."""
+        try:
+            for kind, references in (("pulls", prs), ("issues", issues)):
+                for ref in references:
+                    required = {"repository", "number", "state", "body_sha256"} | ({"head"} if kind == "pulls" else set())
+                    if set(ref) != required or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", ref["repository"]):
+                        raise Rejected("Incomplete handoff decision reference")
+                    if type(ref["number"]) is not int or ref["number"] < 1:
+                        raise Rejected("Invalid handoff decision identity")
+                    endpoint = f"repos/{ref['repository']}/{kind}/{ref['number']}"
+                    response = json.loads(self._run([self.gh, "api", "--hostname", "github.com", endpoint], None))
+                    if (response["number"] != ref["number"] or response["state"] != ref["state"]
+                            or hashlib.sha256((response["body"] or "").encode()).hexdigest() != ref["body_sha256"]
+                            or (kind == "pulls" and response["head"]["sha"] != ref["head"])):
+                        raise Rejected("Handoff PR/issue decision drift")
+        except Rejected:
+            raise
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            raise Rejected("Handoff decision evidence missing or ambiguous") from exc
+
     def verify(self, binding, scope):
         try:
             return self._verify(binding, scope)

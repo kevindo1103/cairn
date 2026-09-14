@@ -26,9 +26,12 @@ def snapshot(connection):
         raise Rejected("Backup missing project/PM binding")
     schema = [list(r) for r in connection.execute("SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name")]
     high = connection.execute("SELECT COALESCE(MAX(seq),0) FROM history").fetchone()[0]
+    registry = json.loads(config["adapter:registry"])
     return {"digest": hashlib.sha256(canonical({"schema": schema, "data": data}).encode()).hexdigest(),
             "history_high_water": high, "schema_version": config["schema_version"],
             "project": json.loads(config["adapter:project"]), "pm_task": config["pm_task"],
+            "package": json.loads(config["adapter:package"]), "registry_revision": registry["revision"],
+            "generations": {e["task_id"]: e["generation"] for e in registry["entries"]},
             "tables": {k: len(v["rows"]) for k, v in data.items()}}
 
 

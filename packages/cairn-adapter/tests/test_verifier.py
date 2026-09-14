@@ -134,6 +134,20 @@ class VerifierTests(unittest.TestCase):
         with self.assertRaises(Rejected):
             Moving(self.responses).verify(self.binding, "adapter")
 
+    def test_handoff_reference_body_head_and_unreachable_evidence(self):
+        self.responses[self.pr_path]["body"] = "reviewed PR"
+        pr = {"repository": "synthetic/repo", "number": 1, "state": "open",
+              "head": self.binding["head"], "body_sha256": hashlib.sha256(b"reviewed PR").hexdigest()}
+        issue = {"repository": "synthetic/repo", "number": 2, "state": "open", "body_sha256": self.binding["plan_sha256"]}
+        verifier = FixtureGitHub(self.responses)
+        verifier.verify_references([pr], [issue])
+        self.responses[self.pr_path]["head"]["sha"] = "f" * 40
+        with self.assertRaises(Rejected):
+            verifier.verify_references([pr], [issue])
+        self.responses[self.pr_path] = Rejected("GitHub unavailable")
+        with self.assertRaises(Rejected):
+            verifier.verify_references([pr], [issue])
+
 
 if __name__ == "__main__":
     unittest.main()
