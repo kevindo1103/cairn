@@ -3,9 +3,12 @@
 Owner: existing Codex_Ledger task 01a08774-2524-7553-b951-35e9ce8de283.
 PM authorized implementation in a separate Cairn branch on 2026-09-14.
 Initial base: PR #9 c496cc5690ba4e1e2825fe07aa6b2d2f6ad2572f (provisional package 0.1.0).
-Current reconciled base: 7547585dde2cd5772ab29f125f49ddfe957e07e4, including main
+Previous reconciled base: 7547585dde2cd5772ab29f125f49ddfe957e07e4, including main
 41253612d633cbf46269acb21ee94f90cf490f80. Exact full tree and package hashes are
 unchanged; only ancestry and adapter pin metadata changed. No lifecycle changes.
+Current accepted base: f31726234c43c2ded4716c0998a8e4475ad25c19 on main,
+tag communication-ledger-v0.1.0, tag object 065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f.
+Package tree remains identical; only the upstream PR quality workflow changed.
 Branch: codex/cairn-principal-adapter. Exclusive paths: packages/cairn-adapter/**.
 Canonical contract: issue #10 and PR #9 comment 5664645871.
 

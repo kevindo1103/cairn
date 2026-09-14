@@ -1,7 +1,7 @@
 # Issue #10 validation — 2026-09-14
 
 This is the initial checkpoint record. Current base/reconciliation and terminal test
-evidence are recorded in RECONCILIATION.md; the original counts below remain historical.
+evidence are recorded in ACCEPTED_PACKAGE.md; the original counts below remain historical.
 
 - Owner task: `01a08774-2524-7553-b951-35e9ce8de283` (Codex_Ledger).
 - Branch: `codex/cairn-principal-adapter`.

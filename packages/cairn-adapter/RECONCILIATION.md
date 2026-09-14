@@ -1,5 +1,7 @@
 # Current package reconciliation
 
+Historical pre-merge checkpoint. Superseded by ACCEPTED_PACKAGE.md after PR #9 merge/tag.
+
 Owner: Codex_Ledger, issue #10. Branch: `codex/cairn-principal-adapter`.
 
 - Cairn main/bootstrap: `41253612d633cbf46269acb21ee94f90cf490f80` (PR #11 merged).

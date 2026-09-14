@@ -1,5 +1,5 @@
 {
-  "acceptance": "PENDING_PACKAGE_FREEZE_VERSION_AND_QC",
+  "acceptance": "PACKAGE_ACCEPTED_ADAPTER_QC_PENDING",
   "module_lf_sha256": {
     "__init__.py": "308bb551be2062721fd704b82d516f567121fde581e85c99181d8c5bd9690c70",
     "__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
@@ -11,6 +11,8 @@
   },
   "package_tree": "d21f0346b18f01f0bab41566200db88b6ac78d3a",
   "schema_version": "1",
-  "source_commit": "7547585dde2cd5772ab29f125f49ddfe957e07e4",
+  "source_commit": "f31726234c43c2ded4716c0998a8e4475ad25c19",
+  "tag": "communication-ledger-v0.1.0",
+  "tag_object": "065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f",
   "version": "0.1.0"
 }

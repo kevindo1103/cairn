@@ -4,15 +4,16 @@ Review-only Python library on the existing communication-ledger package. No serv
 MCP registration, dispatcher process, hook, installation, activation, authority flip,
 task creation or retirement is performed. No ERP files or runtime data are used.
 
-This separate PR owns only `packages/cairn-adapter/**`. Its provisional parent is PR #9
-at `7547585dde2cd5772ab29f125f49ddfe957e07e4`, communication-ledger version `0.1.0`.
-This includes main bootstrap `41253612d633cbf46269acb21ee94f90cf490f80`.
-Reconciliation found an identical complete Git tree and identical package module hashes
-relative to the previous package checkpoint; the ledger lifecycle is unchanged.
+This separate PR targets main and owns only `packages/cairn-adapter/**`. Its accepted
+package base is `f31726234c43c2ded4716c0998a8e4475ad25c19`, communication-ledger
+version `0.1.0`, annotated tag `communication-ledger-v0.1.0` (tag object
+`065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f`). PR #9 is merged. Package tree and
+module hashes are identical to the prior checkpoint; the ledger lifecycle is unchanged.
 The exact package Git tree and LF-normalized Python source hashes are pinned in
 `cairn_adapter/package.lock.json`. Construction and every request refuse different
-package content. Final acceptance is PENDING the accepted package version/tag,
-rebinding to that version, and independent adapter QC. No dependency is silently upgraded.
+package content. Package binding is now accepted/versioned; independent adapter QC
+remains pending. No dependency is silently upgraded. See ACCEPTED_PACKAGE.md for
+the current exact base/head and zero-skip evidence.
 
 ## Trust boundary
 
