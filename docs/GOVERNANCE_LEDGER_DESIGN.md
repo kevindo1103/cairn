@@ -1,7 +1,7 @@
 # Cairn Governance Ledger — Design Handoff
 
 > Status: design/proposal only (2026-09-10). No runtime enforcement or automatic wake is installed.
-> Reusable ledger source: `C:\\Users\\ddkho\\Documents\\Codex\\2026-09-10\\codex-communication-ledger\\outputs`, local MVP version 0.1.0; source/tests are callable locally, end-to-end task wake is NOT_IMPLEMENTED.
+> Reusable ledger package: `packages/communication-ledger/` (vendored from the reviewed local MVP source, version 0.1.0); source/tests are callable locally, end-to-end task wake is NOT_IMPLEMENTED.
 
 ## Topology
 
@@ -33,7 +33,7 @@ archived last. GitHub remains technical decision truth; the ledger tracks delive
 
 | Capability | Status |
 |---|---|
-| SQLite ledger commands (`enqueue`, `claim`, `lease`, `ack`, `start`, `renew`, `complete`, `priority`, `recover`) | IMPLEMENTED in standalone package; local tests/validation available |
+| SQLite ledger commands (`enqueue`, `claim`, `lease`, `ack`, `start`, `renew`, `complete`, `priority`, `recover`) | IMPLEMENTED in `packages/communication-ledger`; local tests/validation available |
 | Automatic wake / Codex task APIs | NOT_IMPLEMENTED |
 | Lease/no-duplicate writer | IMPLEMENTED for ledger writes only; filesystem/process fencing NOT_PROVEN |
 | Negative tests (busy, failure/restart, duplicate, stale approval, missing ACK, blocked, handoff) | Package tests/validation exist; Cairn adapter acceptance NOT_RUN |

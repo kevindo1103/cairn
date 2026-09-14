@@ -1,0 +1,10 @@
+{
+  "actor": "lead",
+  "issue": "synthetic-issue",
+  "scope": "synthetic-scope",
+  "checkpoint": "cp-1",
+  "base": "base-1",
+  "head": "head-1",
+  "expected_revision": 0,
+  "evidence": "synthetic://checkpoint"
+}
