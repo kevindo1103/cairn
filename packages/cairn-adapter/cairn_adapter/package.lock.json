@@ -1,0 +1,16 @@
+{
+  "acceptance": "PENDING_PACKAGE_FREEZE_VERSION_AND_QC",
+  "module_lf_sha256": {
+    "__init__.py": "308bb551be2062721fd704b82d516f567121fde581e85c99181d8c5bd9690c70",
+    "__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "api.py": "e62f2f7fa713a21f01f4b5c486844eacb4edd2c340fcf1ae9618f5bd18e13578",
+    "cli.py": "a093c58662b805d776375576d7caf6332c938d2bff37a53d42139b737c793521",
+    "ledger.py": "d2acfd15e20c7bdab3b0a16ecc0dd80cfc782abf92cca0ca70ece63a7987b0e6",
+    "server.py": "534b3f6d7ba344e8225e8c8823767d935482e10a6b4d2df367936686be15c85d",
+    "transport.py": "2564e72ade4723b98591a5ad61ebf400764e33c6b66c3bceabbccf82f77269b3"
+  },
+  "package_tree": "d21f0346b18f01f0bab41566200db88b6ac78d3a",
+  "schema_version": "1",
+  "source_commit": "c496cc5690ba4e1e2825fe07aa6b2d2f6ad2572f",
+  "version": "0.1.0"
+}
