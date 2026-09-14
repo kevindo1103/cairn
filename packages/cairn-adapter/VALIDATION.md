@@ -47,6 +47,12 @@ Automatic wake: **NOT_IMPLEMENTED**. Filesystem/process fencing: **NOT_PROVEN**.
 No merge, install, hook/MCP restart, topology migration, authority flip, session
 retirement, live ledger write or ERP/production mutation was performed.
 
-The Docs coordination tool was rejected by automatic approval review with
+GitHub source publication (`create_tree`) and the Docs and PM callback tools were
+rejected by automatic approval review with
 `MCP tool call requires approval, but approval policy is never`. This is an environment
-delivery blocker, not permission to assume that Docs/PM received a callback.
+delivery blocker: no remote branch/PR was created and neither recipient received the
+attempted callback. A local patch, source ZIP, PR body and manifest provide the complete
+reviewable handoff. They do not count as remote publication or PM acceptance.
+
+Final read-only GitHub check: PR #9 remained Draft/open at the same provisional base
+`c496cc5690ba4e1e2825fe07aa6b2d2f6ad2572f`. No accepted package tag/version was observed.
