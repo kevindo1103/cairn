@@ -1,0 +1,17 @@
+{
+  "payload": {
+    "dedupe_key": "synthetic-handoff-1",
+    "source_task": "lead",
+    "target_task": "worker-task",
+    "issue": "synthetic-issue",
+    "scope": "synthetic-scope",
+    "checkpoint": "cp-1",
+    "base": "base-1",
+    "head": "head-1",
+    "kind": "HANDOFF",
+    "priority": 1,
+    "dependency": null,
+    "evidence": "synthetic://plan",
+    "next_action": "Run the synthetic verification"
+  }
+}

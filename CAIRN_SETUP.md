@@ -10,6 +10,9 @@
 
 ## Cairn giải quyết gì
 
+Governance ledger design and migration handoff: xem `docs/GOVERNANCE_LEDGER_DESIGN.md`. Đây là thiết
+kế dùng chung; trạng thái enforcement phải được chứng minh riêng, không suy ra từ tài liệu.
+
 Khi chạy nhiều AI coding session song song (Claude Code, Windsurf, …), 4 vấn đề luôn xuất hiện:
 
 1. **Docs drift** — nhiều agent sửa docs → cross-reference stale, spec không khớp code.

@@ -1,0 +1,121 @@
+{
+  "event_id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+  "synthetic_event": true,
+  "real_host_delivery": true,
+  "pm_attested_transport_receipt": {
+    "tool": "send_message_to_thread",
+    "isError": false,
+    "returned_threadId": "01a08774-2524-7553-b951-35e9ce8de283",
+    "evidence": "PM's subsequent receipt message explicitly attests successful host delivery of the preceding exact envelope; no server receipt ID was invented"
+  },
+  "transport": "Codex host send_message_to_thread, initiated by PM; Python does not call this tool",
+  "source_task": "01a07d6f-05ae-74b1-90f3-3a9487ae4a24",
+  "target_task": "01a08774-2524-7553-b951-35e9ce8de283",
+  "authority": "UAT ledger acknowledgement and readback only; no work/ERP/deployment/production authority",
+  "receipt_evidence": "Observed actual inbound PM message in target task carrying exact event ID, dedupe and checkpoint",
+  "observed_at_utc": "2026-09-09T19:03:48.921613+00:00",
+  "callable_route": "Official MCP SDK Client launching exact registered stdio command",
+  "current_task_native_ledger_tools": "NOT_LOADED",
+  "automatic_wake": "NOT_IMPLEMENTED",
+  "readback_verified": true,
+  "worker_acceptance": "ACKED then STARTED by the receiving standalone task",
+  "readback_target": "01a08774-2524-7553-b951-35e9ce8de283",
+  "final_state": "COMPLETED",
+  "event": {
+    "id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+    "dedupe_key": "local-uat-20260910-1",
+    "payload": {
+      "base": "f3127d5b4b9085f79201bb2ffa99aaebef76b8dd",
+      "checkpoint": "uat-1",
+      "dedupe_key": "local-uat-20260910-1",
+      "dependency": null,
+      "evidence": "artifact://local-uat/explicit-user-authorization",
+      "head": "f3127d5b4b9085f79201bb2ffa99aaebef76b8dd",
+      "issue": "LOCAL-UAT-20260910",
+      "kind": "HANDOFF",
+      "next_action": "UAT ONLY: acknowledge this synthetic event and verify ledger readback; NO work, ERP, deployment or production authority.",
+      "priority": 1,
+      "scope": "standalone-ledger-trial-only",
+      "source_task": "01a07d6f-05ae-74b1-90f3-3a9487ae4a24",
+      "target_task": "01a08774-2524-7553-b951-35e9ce8de283"
+    },
+    "digest": "9acc0e5b75bfc269a9dfc666cd8a0d91706f5d49442041f9d090c20bc138a43c",
+    "target": "01a08774-2524-7553-b951-35e9ce8de283",
+    "state": "COMPLETED",
+    "priority": 1,
+    "dependency": null,
+    "attempts": 1,
+    "needs_inspection": 0,
+    "eligible_at": 1788980514.1774988,
+    "created_at": 1788980514.1774988,
+    "updated_at": 1788980633.8168843,
+    "delivery_owner": "local-uat-manual-bridge",
+    "delivery_until": null,
+    "ack_deadline": null,
+    "worker_owner": "standalone-task-uat-worker",
+    "worker_until": null,
+    "receipt": "artifact://local-uat/200bc81e-b87d-4fad-95c7-c777a7474c4d/observed-host-inbound",
+    "ack_evidence": "artifact://local-uat/200bc81e-b87d-4fad-95c7-c777a7474c4d/target-ack",
+    "result_evidence": "artifact://local-uat/200bc81e-b87d-4fad-95c7-c777a7474c4d/verified-readback-result",
+    "reason": null
+  },
+  "history": [
+    {
+      "seq": 2,
+      "event_id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+      "at": 1788980514.1776838,
+      "actor": "01a07d6f-05ae-74b1-90f3-3a9487ae4a24",
+      "action": "QUEUED",
+      "detail": "{\"digest\": \"9acc0e5b75bfc269a9dfc666cd8a0d91706f5d49442041f9d090c20bc138a43c\"}"
+    },
+    {
+      "seq": 3,
+      "event_id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+      "at": 1788980514.1956933,
+      "actor": "local-uat-manual-bridge",
+      "action": "CLAIMED",
+      "detail": "{\"attempts\": 1, \"delivery_owner\": \"local-uat-manual-bridge\", \"delivery_until\": 1788984114.1956046, \"updated_at\": 1788980514.1956084}"
+    },
+    {
+      "seq": 4,
+      "event_id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+      "at": 1788980633.7421901,
+      "actor": "local-uat-manual-bridge",
+      "action": "SENT",
+      "detail": "{\"ack_deadline\": 1788981233.7419474, \"delivery_until\": null, \"receipt\": \"artifact://local-uat/200bc81e-b87d-4fad-95c7-c777a7474c4d/observed-host-inbound\", \"state\": \"SENT\", \"updated_at\": 1788980633.7419534}"
+    },
+    {
+      "seq": 5,
+      "event_id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+      "at": 1788980633.7653508,
+      "actor": "01a08774-2524-7553-b951-35e9ce8de283",
+      "action": "ACKED",
+      "detail": "{\"ack_deadline\": null, \"ack_evidence\": \"artifact://local-uat/200bc81e-b87d-4fad-95c7-c777a7474c4d/target-ack\", \"state\": \"ACKED\", \"updated_at\": 1788980633.7652154, \"worker_owner\": \"standalone-task-uat-worker\", \"worker_until\": 1788981233.7652094}"
+    },
+    {
+      "seq": 6,
+      "event_id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+      "at": 1788980633.7845287,
+      "actor": "standalone-task-uat-worker",
+      "action": "STARTED",
+      "detail": "{\"state\": \"STARTED\", \"updated_at\": 1788980633.7844052}"
+    },
+    {
+      "seq": 7,
+      "event_id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+      "at": 1788980633.784677,
+      "actor": "standalone-task-uat-worker",
+      "action": "START_EVIDENCE",
+      "detail": "{\"evidence\": \"artifact://local-uat/200bc81e-b87d-4fad-95c7-c777a7474c4d/ledger-readback-start\"}"
+    },
+    {
+      "seq": 8,
+      "event_id": "200bc81e-b87d-4fad-95c7-c777a7474c4d",
+      "at": 1788980633.8170588,
+      "actor": "standalone-task-uat-worker",
+      "action": "COMPLETED",
+      "detail": "{\"result_evidence\": \"artifact://local-uat/200bc81e-b87d-4fad-95c7-c777a7474c4d/verified-readback-result\", \"state\": \"COMPLETED\", \"updated_at\": 1788980633.8168843, \"worker_until\": null}"
+    }
+  ],
+  "protocol_version": "2026-07-28"
+}

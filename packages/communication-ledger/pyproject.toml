@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codex-communication-ledger"
+version = "0.1.0"
+description = "Local durable communication ledger with manual transport and MCP stdio"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+mcp = ["mcp==2.2.0"]
+
+[project.scripts]
+comms-ledger = "comms_ledger.cli:main"
+comms-ledger-mcp = "comms_ledger.server:main"
+
+[tool.setuptools.packages.find]
+include = ["comms_ledger*"]
