@@ -125,4 +125,4 @@ The runner imports the sibling pinned package and fails on any skip.
 The 16 named groups are mapped in MATRIX.md; additional tests cover transaction CAS
 races, cross-scope timeout effects, freeze, PM-last, dependency drift and real local Git.
 GitHub responses in verifier tests are explicit fixtures, not live GitHub E2E evidence.
-See VALIDATION.md for exact environment, results and pending gates.
+See ACCEPTED_PACKAGE.md for exact environment, results and pending adapter QC.

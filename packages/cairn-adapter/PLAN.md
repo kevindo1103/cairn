@@ -34,5 +34,5 @@ comparison; never overwrite a live database. One fixed ledger.sqlite per project
 Validation: 16 named negative groups plus happy path, transaction race, verifier and
 backup/restore tests, all in synthetic temporary projects. Publish exact test environment,
 base/head and separate draft PR. No changes to packages/communication-ledger or PR #9
-docs/workflows. Final acceptance remains pending accepted package version/tag and adapter QC.
+docs/workflows. Package version/tag is now accepted; final adapter acceptance awaits QC.
 Automatic wake NOT_IMPLEMENTED; filesystem/process fencing NOT_PROVEN.
