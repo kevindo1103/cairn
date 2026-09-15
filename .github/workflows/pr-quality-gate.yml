@@ -2,7 +2,6 @@ name: PR Quality Gate
 
 on:
   pull_request:
-    branches: [main, staging]
   push:
     branches: [main]
 
@@ -42,12 +41,25 @@ jobs:
         working-directory: packages/cairn-adapter
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - if: ${{ hashFiles('packages/cairn-adapter/run_tests.py') != '' }}
+      - name: Detect adapter delta
+        id: adapter_delta
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" -- packages/cairn-adapter; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: ${{ steps.adapter_delta.outputs.changed == 'true' }}
         run: python run_tests.py
-      - if: ${{ hashFiles('packages/cairn-adapter/run_tests.py') != '' }}
+      - if: ${{ steps.adapter_delta.outputs.changed == 'true' }}
         run: python -m compileall -q cairn_adapter tests
-      - if: ${{ hashFiles('packages/cairn-adapter/run_tests.py') != '' }}
+      - if: ${{ steps.adapter_delta.outputs.changed == 'true' }}
         run: python -m pip wheel . --no-deps --wheel-dir dist
