@@ -33,7 +33,7 @@ def process_claim(path, barrier, results):
 
 class LedgerTests(unittest.TestCase):
     def test_package_version_contract(self):
-        self.assertEqual(__version__, "0.1.0")
+        self.assertEqual(__version__, "0.2.0")
 
     def setUp(self):
         (ROOT / "work").mkdir(exist_ok=True)

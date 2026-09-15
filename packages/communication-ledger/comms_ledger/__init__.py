@@ -1,6 +1,6 @@
 """Standalone local communication ledger. No Codex or ERP side effects."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .ledger import Ledger, LedgerError
 
