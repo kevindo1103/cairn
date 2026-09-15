@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -96,6 +97,25 @@ class ExistingTaskUatTests(unittest.TestCase):
             path.write_text(raw, encoding='utf-8')
             with self.assertRaises(ValueError):
                 uat.read_json(path)
+
+    def test_core_evidence_contract_rejected_before_store_open_zero_write(self):
+        for reference in ('codex://threads/' + uat.RECIPIENT, 'https://' + 'x' * 1000, '', None):
+            message = self.observation('sent')
+            message['origin']['evidence_ref'] = reference
+            with patch.object(uat, 'Uat', side_effect=AssertionError('Store opened before evidence validation')):
+                self.no_write(lambda: self.apply('sent', message))
+
+    def test_saved_platform_receipt_can_use_supported_artifact_reference(self):
+        receipt = self.root / 'evidence' / 'fixture-platform-receipt.json'
+        receipt.write_text(json.dumps(dict(synthetic_only=True,
+            platform_locator='codex://threads/' + uat.RECIPIENT)), encoding='utf-8')
+        reference = 'artifact://sha256/' + hashlib.sha256(receipt.read_bytes()).hexdigest()
+        message = self.observation('sent')
+        message['origin']['evidence_ref'] = reference
+        result = self.apply('sent', message)
+        self.assertEqual(result['state'], 'SENT')
+        self.assertEqual(result['origin']['evidence_ref'], reference)
+        self.assertEqual(result['principal_enforcement'], 'NOT_PROVEN')
 
 
 if __name__ == '__main__':

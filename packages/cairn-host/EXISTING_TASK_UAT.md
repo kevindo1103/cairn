@@ -30,6 +30,13 @@ turn_id=null because a transport receipt is not recipient execution. ACK needs a
 nonempty platform-resolved turn; START uses the second recipient turn; COMPLETE
 must match START's turn. Never extract origin from echoed task IDs in response text.
 PM, not this parser, establishes the provenance of the file it supplies.
+Evidence reference validation reuses the pinned core contract before opening the
+Store: https://, artifact:// or synthetic://, at most1000 characters. codex://
+is not a ledger evidence scheme. Preserve a real platform receipt (including any
+codex locator) in an owner-reviewed artifact, then reference that artifact with
+artifact://sha256/DIGEST; never relabel an unobserved delivery as evidence.
+An import failure does not undo an external message. Preserve delivered/import-
+failed state and obtain a recovery decision before importing again or sending.
 
 readback contains every frozen envelope field plus action: TRANSPORT_ACCEPTED,
 ACK_REQUEST, START_REQUEST or COMPLETION_REQUEST respectively. Completion also

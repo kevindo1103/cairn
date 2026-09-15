@@ -118,12 +118,15 @@ def import_observation(root, stage, observation, *, clock=time.time):
         raise ValueError('Require PM manual observation envelope')
     origin, readback = observation['origin'], observation['readback']
     if (not isinstance(origin, dict) or set(origin) != {'thread_id', 'turn_id', 'evidence_ref'}
-            or origin['thread_id'] != RECIPIENT or not isinstance(origin['evidence_ref'], str)
-            or not origin['evidence_ref'].startswith(('https://', 'codex://', 'artifact://'))
-            or len(origin['evidence_ref']) > 2048
+            or origin['thread_id'] != RECIPIENT
             or (stage != 'sent' and (not isinstance(origin['turn_id'], str) or not origin['turn_id'].strip()))
             or (stage == 'sent' and origin['turn_id'] is not None)):
         raise ValueError('Wrong/missing platform-resolved origin')
+    dependencies()
+    from comms_ledger.ledger import evidence_ref
+    # Use the pinned core contract before opening the UAT Store. In particular,
+    # codex:// is a platform locator, not a supported ledger evidence reference.
+    evidence_ref(origin['evidence_ref'])
     uat = Uat(root)
     expected = dict(uat.envelope, action=ACTION[stage])
     if stage == 'complete':
