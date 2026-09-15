@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -104,6 +105,28 @@ class LocalPilotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             pilot.exclusive_root(Path(self.temp.name) / '..' / 'escaped')
 
+    def test_real_windows_junction_ancestor_refused_target_untouched(self):
+        self.assertEqual(os.name, 'nt', 'This host coverage requires a real Windows runner')
+        target = Path(self.temp.name) / 'junction-target'
+        target.mkdir()
+        sentinel = target / 'keep.bin'
+        sentinel.write_bytes(b'untouched junction target\x00\xff')
+        link = Path(self.temp.name) / 'junction-link'
+        created = subprocess.run(['cmd.exe', '/d', '/c', 'mklink', '/J', str(link), str(target)],
+                                 capture_output=True, text=True, timeout=10)
+        self.assertEqual(created.returncode, 0,
+                         'Junction creation denied; no fallback or skip: ' + created.stderr)
+        try:
+            self.assertTrue(link.is_junction())
+            before = {p.name: p.read_bytes() for p in target.iterdir()}
+            with self.assertRaisesRegex(ValueError, 'Linked run path refused'):
+                pilot.Pilot(link / 'new-run')
+            self.assertEqual({p.name: p.read_bytes() for p in target.iterdir()}, before)
+            self.assertFalse((target / 'new-run').exists())
+        finally:
+            link.rmdir()  # Remove only the link, never recursively delete its target.
+        self.assertEqual(sentinel.read_bytes(), b'untouched junction target\x00\xff')
+
 
 class HandoffTests(unittest.TestCase):
     @classmethod
@@ -167,6 +190,24 @@ class HandoffTests(unittest.TestCase):
         self.assertFalse(send('complete', worker_token='wrong', evidence='synthetic://child-complete')['ok'])
         self.assertEqual(local.api['proof'](local.store.path), before)
         self.assertEqual(local.state(), 'STARTED')
+
+    def test_completed_quiesced_drained_requires_active_successor(self):
+        local = pilot.HandoffPilot(Path(self.temp.name) / 'successor-not-active')
+        with patch.object(pilot, 'HandoffPilot', return_value=local):
+            result = pilot.run(local.root, 'handoff')
+        self.assertTrue(result['scenario_passed'])
+        successor = next(e for e in local.entries if e['task_id'] == 'worker')
+        successor['state'] = 'quiesced'
+        successor['quiescence'] = dict(evidence='synthetic://successor-quiesced', active_mutations=0,
+                                       unmapped_work=0, ownership_ambiguity=0)
+        local.revision = local.api['Owner'](local.store).replace(
+            local.tokens['owner'], local.revision, local.entries)['revision']
+        check = local.assess('successor_not_active', False, attempt_retire=True)
+        eligibility = check['eligibility']
+        for field in ('HANDOFF_COMPLETED', 'predecessor_QUIESCED', 'drain_ZERO'):
+            self.assertTrue(eligibility[field], field)
+        self.assertFalse(eligibility['successor_ACTIVE_generation'])
+        self.assertTrue(check['retire_rejected_zero_write'])
 
 
 if __name__ == '__main__':
