@@ -50,9 +50,10 @@ class Uat(Pilot):
                 raise ValueError('Linked/traversing UAT root refused')
         self.api = dependencies()
         data = read_json(self.root / 'broker' / 'owner.json')
-        if set(data) != {'tokens', 'head', 'recipient', 'core_pin'} or data['recipient'] != RECIPIENT or data['core_pin'] != CORE:
+        if set(data) != {'tokens', 'head', 'recipient', 'core_pin'} or data['core_pin'] != CORE:
             raise ValueError('Unknown UAT owner binding')
         self.tokens = data['tokens']
+        self.recipient = data['recipient']
         self.store = self.api['Store'](self.root / 'broker', PROJECT)
         self.verifier = UatVerifier(data['head'])
         from cairn_adapter.store import get_config
@@ -61,19 +62,19 @@ class Uat(Pilot):
             self.envelope = config['envelope']
             self.event = self.envelope['event_id']
             self.revision = config['registry_revision']
-            if config['recipient'] != RECIPIENT:
+            if config['recipient'] != self.recipient:
                 raise ValueError('Wrong canonical recipient')
 
     def identity(self, credential):
         # Owner-fixed mapping only. This is explicitly MANUAL_ATTESTATION, not
         # independently enforced platform/OS identity or caller-selected actor.
-        for actor in ('pm', RECIPIENT):
+        for actor in ('pm', self.recipient):
             if credential == self.tokens[actor]:
                 return dict(task_id=actor, session_id='synthetic-session-' + actor, generation=1)
         return None
 
 
-def prepare(root, head):
+def prepare(root, head, *, recipient=RECIPIENT, dedupe=DEDUPE):
     if len(head) != 40 or any(c not in '0123456789abcdef' for c in head):
         raise ValueError('Require exact source head')
     api = dependencies()
@@ -85,8 +86,8 @@ def prepare(root, head):
     tokens = {actor: secrets.token_hex(32) for actor in ('owner', 'pm', RECIPIENT)}
     # Reuse existing fixture registry shape and pinned Adapter; no new lifecycle.
     fixture = object.__new__(Uat)
-    fixture.api, fixture.tokens = api, tokens
-    entries = [fixture.entry('pm', 'PM'), fixture.entry(RECIPIENT, 'worker')]
+    fixture.api, fixture.tokens, fixture.recipient = api, tokens, recipient
+    entries = [fixture.entry('pm', 'PM'), fixture.entry(recipient, 'worker')]
     store = api['Store'].initialize(root / 'broker', PROJECT, 'pm', tokens['owner'])
     revision = api['Owner'](store).replace(tokens['owner'], 0, entries)['revision']
     verifier = UatVerifier(head)
@@ -94,17 +95,17 @@ def prepare(root, head):
     def call(command, args):
         return adapter.execute(tokens['pm'], 1, revision, SCOPE, command, args)
     call('checkpoint', {})
-    event = call('enqueue', dict(dedupe_key=DEDUPE, target=RECIPIENT, kind='APPROVAL', priority=1,
+    event = call('enqueue', dict(dedupe_key=dedupe, target=recipient, kind='APPROVAL', priority=1,
                                  dependency=None, next_action='Readback and arithmetic only'))
     from cairn_adapter.store import get_config, put_config
     envelope = {key: event['payload'][key] for key in ('checkpoint', 'scope', 'head', 'base')}
-    envelope.update(event_id=event['id'], dedupe=DEDUPE, nonce=secrets.token_hex(16))
+    envelope.update(event_id=event['id'], dedupe=dedupe, nonce=secrets.token_hex(16))
     with store.transaction() as (db, ledger):
-        put_config(db, 'uat', dict(envelope=envelope, recipient=RECIPIENT, registry_revision=revision,
+        put_config(db, 'uat', dict(envelope=envelope, recipient=recipient, registry_revision=revision,
                                   imports={}, sent_at=None, identity='MANUAL_ATTESTATION'))
-    owner = dict(tokens=tokens, head=head, recipient=RECIPIENT, core_pin=CORE)
+    owner = dict(tokens=tokens, head=head, recipient=recipient, core_pin=CORE)
     (root / 'broker' / 'owner.json').write_text(json.dumps(owner) + '\n', encoding='utf-8')
-    public = dict(recipient=RECIPIENT, envelope=envelope, state='QUEUED', transport='NOT_SENT',
+    public = dict(recipient=recipient, envelope=envelope, state='QUEUED', transport='NOT_SENT',
                   principal_enforcement='NOT_PROVEN', isolation='NOT_PROVEN', activation_authorized=False)
     (root / 'evidence' / 'envelope.json').write_text(json.dumps(public, indent=2) + '\n', encoding='utf-8')
     return public
@@ -118,7 +119,6 @@ def import_observation(root, stage, observation, *, clock=time.time):
         raise ValueError('Require PM manual observation envelope')
     origin, readback = observation['origin'], observation['readback']
     if (not isinstance(origin, dict) or set(origin) != {'thread_id', 'turn_id', 'evidence_ref'}
-            or origin['thread_id'] != RECIPIENT
             or (stage != 'sent' and (not isinstance(origin['turn_id'], str) or not origin['turn_id'].strip()))
             or (stage == 'sent' and origin['turn_id'] is not None)):
         raise ValueError('Wrong/missing platform-resolved origin')
@@ -127,6 +127,9 @@ def import_observation(root, stage, observation, *, clock=time.time):
     # Use the pinned core contract before opening the UAT Store. In particular,
     # codex:// is a platform locator, not a supported ledger evidence reference.
     evidence_ref(origin['evidence_ref'])
+    owner = read_json(Path(root) / 'broker' / 'owner.json')
+    if origin['thread_id'] != owner.get('recipient'):
+        raise ValueError('Wrong canonical recipient')
     uat = Uat(root)
     expected = dict(uat.envelope, action=ACTION[stage])
     if stage == 'complete':
@@ -180,6 +183,8 @@ def main():
     parser.add_argument('command', choices=('prepare', *ACTION))
     parser.add_argument('--root', required=True, type=Path)
     parser.add_argument('--observation', type=Path)
+    parser.add_argument('--recipient')
+    parser.add_argument('--dedupe')
     args = parser.parse_args()
     if args.command == 'prepare':
         if args.observation:
@@ -189,7 +194,8 @@ def main():
                                         '-c', 'safe.directory=' + str(repo).replace('\\', '/'),
                                         '-C', str(repo),
                                         'rev-parse', 'HEAD'], text=True).strip()
-        result = prepare(args.root, head)
+        result = prepare(args.root, head, recipient=args.recipient or RECIPIENT,
+                         dedupe=args.dedupe or DEDUPE)
     else:
         if args.observation is None:
             parser.error('--observation required')
