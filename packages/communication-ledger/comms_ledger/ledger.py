@@ -48,6 +48,22 @@ def duration(value):
     return value
 
 
+def _initialize_pm_authority(db, pm_task=None):
+    """Schema-2 DDL in the caller's transaction; never an implicit migration."""
+    statements = (
+        "CREATE TABLE IF NOT EXISTS pm_authority (revision INTEGER PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, event_id TEXT UNIQUE REFERENCES events(id), receipt TEXT NOT NULL)",
+        "CREATE TRIGGER IF NOT EXISTS pm_authority_no_update BEFORE UPDATE ON pm_authority BEGIN SELECT RAISE(ABORT, 'PM authority is append-only'); END",
+        "CREATE TRIGGER IF NOT EXISTS pm_authority_no_delete BEFORE DELETE ON pm_authority BEGIN SELECT RAISE(ABORT, 'PM authority is append-only'); END",
+        "CREATE TRIGGER IF NOT EXISTS bootstrap_pm_no_update BEFORE UPDATE ON config WHEN OLD.key='pm_task' OR NEW.key='pm_task' BEGIN SELECT RAISE(ABORT, 'bootstrap PM is immutable'); END",
+        "CREATE TRIGGER IF NOT EXISTS bootstrap_pm_no_delete BEFORE DELETE ON config WHEN OLD.key='pm_task' BEGIN SELECT RAISE(ABORT, 'bootstrap PM is immutable'); END",
+    )
+    for statement in statements:
+        db.execute(statement)
+    if pm_task is not None:
+        db.execute("INSERT INTO pm_authority VALUES (0, ?, NULL, ?)",
+                   (pm_task, json.dumps({"bootstrap": True}, sort_keys=True)))
+
+
 class Ledger:
     def __init__(self, path, *, pm_task=None, clock=time.time):
         self.path = str(Path(path).resolve())
@@ -87,19 +103,6 @@ class Ledger:
                 CREATE TABLE IF NOT EXISTS history (
                     seq INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT REFERENCES events(id),
                     at REAL NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS pm_authority (
-                    revision INTEGER PRIMARY KEY, task_id TEXT NOT NULL UNIQUE,
-                    event_id TEXT UNIQUE REFERENCES events(id), receipt TEXT NOT NULL);
-                CREATE TRIGGER IF NOT EXISTS pm_authority_no_update BEFORE UPDATE ON pm_authority
-                    BEGIN SELECT RAISE(ABORT, 'PM authority is append-only'); END;
-                CREATE TRIGGER IF NOT EXISTS pm_authority_no_delete BEFORE DELETE ON pm_authority
-                    BEGIN SELECT RAISE(ABORT, 'PM authority is append-only'); END;
-                CREATE TRIGGER IF NOT EXISTS bootstrap_pm_no_update BEFORE UPDATE ON config
-                    WHEN OLD.key='pm_task' OR NEW.key='pm_task'
-                    BEGIN SELECT RAISE(ABORT, 'bootstrap PM is immutable'); END;
-                CREATE TRIGGER IF NOT EXISTS bootstrap_pm_no_delete BEFORE DELETE ON config
-                    WHEN OLD.key='pm_task'
-                    BEGIN SELECT RAISE(ABORT, 'bootstrap PM is immutable'); END;
                 CREATE TRIGGER IF NOT EXISTS history_no_update BEFORE UPDATE ON history
                     BEGIN SELECT RAISE(ABORT, 'history is append-only'); END;
                 CREATE TRIGGER IF NOT EXISTS history_no_delete BEFORE DELETE ON history
@@ -117,13 +120,12 @@ class Ledger:
                     raise LedgerError("Initialize this database with pm_task first")
                 db.execute("INSERT INTO config VALUES ('pm_task', ?)", (pm_task,))
                 db.execute("INSERT INTO config VALUES ('schema_version', ?)", (EXPECTED_SCHEMA_VERSION,))
-                db.execute("INSERT INTO pm_authority VALUES (0, ?, NULL, ?)",
-                           (pm_task, json.dumps({"bootstrap": True}, sort_keys=True)))
             elif pm_task is not None and row[0] != pm_task:
                 raise LedgerError("pm_task is already bound to this database")
             schema = db.execute("SELECT value FROM config WHERE key='schema_version'").fetchone()
             if schema is None or schema[0] != EXPECTED_SCHEMA_VERSION:
                 raise LedgerError("unsupported schema_version; migration is required")
+            _initialize_pm_authority(db, pm_task if row is None else None)
             db.commit()
 
     def _connect(self):
