@@ -18,7 +18,7 @@ TERMINAL = {"COMPLETED", "BLOCKED", "CANCELLED", "SUPERSEDED"}
 FIELDS = {"dedupe_key", "source_task", "target_task", "issue", "checkpoint",
           "base", "head", "scope", "kind", "priority", "dependency",
           "evidence", "next_action"}
-EXPECTED_SCHEMA_VERSION = "1"
+EXPECTED_SCHEMA_VERSION = "2"
 
 
 class LedgerError(ValueError):
@@ -48,6 +48,22 @@ def duration(value):
     return value
 
 
+def _initialize_pm_authority(db, pm_task=None):
+    """Schema-2 DDL in the caller's transaction; never an implicit migration."""
+    statements = (
+        "CREATE TABLE IF NOT EXISTS pm_authority (revision INTEGER PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, event_id TEXT UNIQUE REFERENCES events(id), receipt TEXT NOT NULL)",
+        "CREATE TRIGGER IF NOT EXISTS pm_authority_no_update BEFORE UPDATE ON pm_authority BEGIN SELECT RAISE(ABORT, 'PM authority is append-only'); END",
+        "CREATE TRIGGER IF NOT EXISTS pm_authority_no_delete BEFORE DELETE ON pm_authority BEGIN SELECT RAISE(ABORT, 'PM authority is append-only'); END",
+        "CREATE TRIGGER IF NOT EXISTS bootstrap_pm_no_update BEFORE UPDATE ON config WHEN OLD.key='pm_task' OR NEW.key='pm_task' BEGIN SELECT RAISE(ABORT, 'bootstrap PM is immutable'); END",
+        "CREATE TRIGGER IF NOT EXISTS bootstrap_pm_no_delete BEFORE DELETE ON config WHEN OLD.key='pm_task' BEGIN SELECT RAISE(ABORT, 'bootstrap PM is immutable'); END",
+    )
+    for statement in statements:
+        db.execute(statement)
+    if pm_task is not None:
+        db.execute("INSERT INTO pm_authority VALUES (0, ?, NULL, ?)",
+                   (pm_task, json.dumps({"bootstrap": True}, sort_keys=True)))
+
+
 class Ledger:
     def __init__(self, path, *, pm_task=None, clock=time.time):
         self.path = str(Path(path).resolve())
@@ -56,6 +72,12 @@ class Ledger:
             text_value(pm_task, "pm_task")
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with closing(self._connect()) as db:
+            # Refuse old/unknown stores before DDL or journal-mode changes. No
+            # constructor migration; only newly initialized schema 2 is supported.
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='config'").fetchone():
+                schema = db.execute("SELECT value FROM config WHERE key='schema_version'").fetchone()
+                if schema is None or schema[0] != EXPECTED_SCHEMA_VERSION:
+                    raise LedgerError("unsupported schema_version; offline migration is required")
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -97,12 +119,13 @@ class Ledger:
                 if pm_task is None:
                     raise LedgerError("Initialize this database with pm_task first")
                 db.execute("INSERT INTO config VALUES ('pm_task', ?)", (pm_task,))
-                db.execute("INSERT INTO config VALUES ('schema_version', '1')")
+                db.execute("INSERT INTO config VALUES ('schema_version', ?)", (EXPECTED_SCHEMA_VERSION,))
             elif pm_task is not None and row[0] != pm_task:
                 raise LedgerError("pm_task is already bound to this database")
             schema = db.execute("SELECT value FROM config WHERE key='schema_version'").fetchone()
             if schema is None or schema[0] != EXPECTED_SCHEMA_VERSION:
                 raise LedgerError("unsupported schema_version; migration is required")
+            _initialize_pm_authority(db, pm_task if row is None else None)
             db.commit()
 
     def _connect(self):
@@ -126,8 +149,71 @@ class Ledger:
             db.close()
 
     def _pm(self, db, actor):
-        if actor != db.execute("SELECT value FROM config WHERE key='pm_task'").fetchone()[0]:
-            raise LedgerError("Only the configured PM task may perform this operation")
+        if actor != self._pm_authority(db)["task_id"]:
+            raise LedgerError("Only the current PM task may perform this operation")
+
+    @staticmethod
+    def _pm_authority(db):
+        row = db.execute("SELECT * FROM pm_authority ORDER BY revision DESC LIMIT 1").fetchone()
+        if row is None:
+            raise LedgerError("Missing PM authority; offline recovery is required")
+        return {"revision": row["revision"], "task_id": row["task_id"],
+                "event_id": row["event_id"], "receipt": json.loads(row["receipt"])}
+
+    def pm_authority(self):
+        with self._tx() as db:
+            return self._pm_authority(db)
+
+    def succeed_pm(self, *, actor, event_id, expected_revision, predecessor, successor,
+                   predecessor_generation, successor_generation, checkpoint_revision,
+                   registry_revision, review_digest, evidence):
+        """Trusted-host CAS, called inside the adapter's owner-reviewed transaction.
+
+        Registry generations/review digest are external proof bindings, not host
+        authentication. Authority revision is a separate monotonic core epoch.
+        No process, installation, transport or task retirement occurs here.
+        """
+        for name, value in (("actor", actor), ("predecessor", predecessor), ("successor", successor)):
+            text_value(value, name)
+        for name, value, minimum in (("expected_revision", expected_revision, 0),
+                ("registry_revision", registry_revision, 0), ("checkpoint_revision", checkpoint_revision, 1),
+                ("predecessor_generation", predecessor_generation, 1), ("successor_generation", successor_generation, 1)):
+            if type(value) is not int or value < minimum:
+                raise LedgerError("Invalid " + name)
+        if not isinstance(review_digest, str) or len(review_digest) != 64 or any(c not in "0123456789abcdef" for c in review_digest):
+            raise LedgerError("Require exact reviewed proof digest")
+        evidence_ref(evidence)
+        with self._tx() as db:
+            current = self._pm_authority(db)
+            if current["revision"] != expected_revision or current["task_id"] != predecessor or actor != predecessor:
+                raise LedgerError("PM authority CAS moved or predecessor differs")
+            if db.execute("SELECT 1 FROM pm_authority WHERE task_id=?", (successor,)).fetchone():
+                raise LedgerError("PM identities cannot be reused")
+            event = self._get(db, event_id)
+            p = json.loads(event["payload"])
+            if (p["kind"] != "HANDOFF" or event["state"] != "COMPLETED" or
+                    p["source_task"] != predecessor or event["target"] != successor or not self._fresh(db, event)):
+                raise LedgerError("Require completed fresh predecessor-to-successor HANDOFF")
+            cp = db.execute("SELECT revision FROM checkpoints WHERE issue=? AND scope=?", (p["issue"], p["scope"])).fetchone()
+            if cp[0] != checkpoint_revision:
+                raise LedgerError("Checkpoint revision moved")
+            for row in db.execute("SELECT * FROM events"):
+                related = {json.loads(row["payload"])["source_task"], row["target"]}
+                if predecessor in related or successor in related:
+                    if row["state"] != "COMPLETED" or any(row[k] is not None for k in
+                            ("delivery_token", "delivery_until", "worker_token", "worker_until")):
+                        raise LedgerError("PM handoff requires zero outstanding work and leases")
+            if db.execute("SELECT 1 FROM recipients WHERE task IN (?,?) AND active_event IS NOT NULL",
+                          (predecessor, successor)).fetchone():
+                raise LedgerError("PM handoff still holds a worker slot")
+            receipt = dict(predecessor=predecessor, predecessor_generation=predecessor_generation,
+                           successor_generation=successor_generation, checkpoint_revision=checkpoint_revision,
+                           registry_revision=registry_revision, review_digest=review_digest, evidence=evidence,
+                           event_digest=event["digest"], checkpoint={k: p[k] for k in ("issue", "scope", "checkpoint", "base", "head")})
+            db.execute("INSERT INTO pm_authority VALUES (?,?,?,?)",
+                       (expected_revision + 1, successor, event_id, json.dumps(receipt, sort_keys=True)))
+            self._audit(db, event_id, actor, "PM_SUCCEEDED", dict(revision=expected_revision + 1, successor=successor, **receipt))
+            return self._pm_authority(db)
 
     def _audit(self, db, event_id, actor, action, detail):
         text_value(actor, "actor")

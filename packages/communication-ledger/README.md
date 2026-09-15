@@ -130,7 +130,7 @@ This MVP is for one trusted local operator/host. Actor, source task, target task
 
 Store only concise coordination metadata and evidence references (`https://`, `artifact://`, `synthetic://`). There are no fields for attachments or raw logs, and strings are bounded to a single line. Validation does not detect every secret or personal identifier: never submit credentials, sensitive query-string links, personal data, or raw production logs in any field. Evidence content is not fetched or verified by this ledger.
 
-Keep the database on a local disk outside OneDrive/network shares. No automatic backup/restore or schema migration system is included (schema version 1). Stop clients before making a filesystem backup and preserve all SQLite files together; use SQLite's backup API for a live backup. Clock jumps can affect timeout timing; timeout never proves a worker stopped. No live Codex/ERP/UAT acceptance is claimed by synthetic tests.
+Keep the database on a local disk outside OneDrive/network shares. No automatic backup/restore or schema migration system is included (schema version 2; schema 1 requires separately reviewed offline migration). Stop clients before making a filesystem backup and preserve all SQLite files together; use SQLite's backup API for a live backup. Clock jumps can affect timeout timing; timeout never proves a worker stopped. No live Codex/ERP/UAT acceptance is claimed by synthetic tests.
 
 ## Design provenance
 
