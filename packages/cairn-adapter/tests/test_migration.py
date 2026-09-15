@@ -128,7 +128,8 @@ class AdapterMigrationTests(unittest.TestCase):
             self.reject_no_write(lambda: self.migrate(**args))
         original = copy.deepcopy(self.core_proof)
         for key, bad in (('output_digest', '0'*64), ('output_path', str(self.root / 'other.sqlite')),
-                         ('status', 'COMPLETE'), ('target_modules_sha256', '0'*64)):
+                         ('status', 'COMPLETE'), ('target_modules_sha256', '0'*64),
+                         ('output_identity', dict(original['output_identity'], links=True))):
             self.core_proof = dict(original, **{key: bad})
             self.reject_no_write(self.migrate)
         self.core_proof = original

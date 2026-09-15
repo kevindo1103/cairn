@@ -45,7 +45,7 @@ def _validate_source(db, source, expected, project, owner_token, revision):
             or expected.get('adapter_rebound') is not False or expected.get('target_schema') != '2'
             or expected.get('target_version') != '0.2.0'
             or expected.get('output_path') != str(source)
-            or expected.get('output_identity') != core._identity(source)
+            or canonical(expected.get('output_identity')) != canonical(core._identity(source))
             or expected.get('output_digest') != core._digest(snapshot)
             or type(expected.get('output_history_high_water')) is not int
             or expected['output_history_high_water'] != high):
