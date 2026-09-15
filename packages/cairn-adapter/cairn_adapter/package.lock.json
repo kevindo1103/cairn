@@ -5,13 +5,14 @@
     "__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
     "api.py": "e62f2f7fa713a21f01f4b5c486844eacb4edd2c340fcf1ae9618f5bd18e13578",
     "cli.py": "a093c58662b805d776375576d7caf6332c938d2bff37a53d42139b737c793521",
-    "ledger.py": "814909a7de64c0beff9df751083f0106f9a2805bcae4b14b7f0ac21c227f0013",
+    "ledger.py": "ae171572a18220d9da48d2813060b21c405342d7d244127ab20ad773792ee6cc",
+    "migration.py": "6f5aaecc1a8894ab5917b37c7e23ffb5c8b1d7733c3322cf24bb4cf50ab0ac64",
     "server.py": "534b3f6d7ba344e8225e8c8823767d935482e10a6b4d2df367936686be15c85d",
     "transport.py": "2564e72ade4723b98591a5ad61ebf400764e33c6b66c3bceabbccf82f77269b3"
   },
-  "package_tree": "75665794d2f19d0e924c08e9c97a03beb27c859f",
+  "package_tree": "b207445cda7231917df89d210948a5fc19d0e923",
   "schema_version": "2",
-  "source_commit": "ec4004d59369392ebf6c49c8f6c15c733b3434ac",
+  "source_commit": "39950de062ef085ed4e0ba5f87e3b48d6183d551",
   "tag": "communication-ledger-v0.2.0",
   "tag_object": null,
   "version": "0.2.0"

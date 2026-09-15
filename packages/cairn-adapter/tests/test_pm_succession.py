@@ -21,12 +21,30 @@ class PMSuccession(unittest.TestCase):
     rejected_zero_write = fixtures.NegativeMatrix.rejected_zero_write
     refresh_fixture_identity = fixtures.NegativeMatrix.refresh_fixture_identity
 
-    def scenario(self):
-        self.store = Store.initialize(self.root / 'pm-project', 'synthetic/repo', 'pm', TOKENS['owner'], clock=lambda: self.now)
+    def scenario(self, migrated=False):
+        if migrated:
+            from test_migration import prepare_fixture
+            from cairn_adapter.migration import migrate_copy
+            from cairn_adapter.store import canonical
+            fixture_root = self.root / 'migration-fixture'
+            fixture_root.mkdir()
+            self.entries = [entry('pm', role='PM'), entry('old', role='Lead'), entry('new', state='pending')]
+            self.entries[1]['generation'] = 2
+            source, core_proof, _ = prepare_fixture(fixture_root, {
+                'adapter:registry': canonical(dict(revision=7, entries=self.entries))})
+            destination = self.root / 'pm-project'
+            destination.mkdir()
+            migrate_copy(source, destination, core_proof, project='synthetic/repo', owner_token=TOKENS['owner'],
+                         expected_registry_revision=7, evidence='synthetic://owner-migration')
+            self.store = Store(destination, 'synthetic/repo', clock=lambda: self.now)
+            self.entries[2]['role'] = 'PM'
+            self.revision = 8
+        else:
+            self.store = Store.initialize(self.root / 'pm-project', 'synthetic/repo', 'pm', TOKENS['owner'], clock=lambda: self.now)
+            self.entries = [entry('pm', role='PM'), entry('old', role='Lead'), entry('new', state='pending', role='PM')]
+            self.revision = 0
         self.owner = Owner(self.store)
-        self.entries = [entry('pm', role='PM'), entry('old', role='Lead'), entry('new', state='pending', role='PM')]
         self.entries[0]['successor'] = {'task_id': 'new', 'generation': 1}
-        self.revision = 0
         self.replace()
         self.adapter = Adapter(self.store, self.verifier, host_identity=self.identity)
         self.call('pm', 'checkpoint')
@@ -47,6 +65,18 @@ class PMSuccession(unittest.TestCase):
                                            unmapped_work=0, ownership_ambiguity=0)
         self.replace()
         return event, token
+
+    def test_migrated_fixture_preserves_owner_separation_and_pm_controls(self):
+        event, token = self.scenario(migrated=True)
+        self.rejected_zero_write(lambda: self.owner.replace(TOKENS['old'], self.revision, self.entries))
+        self.rejected_zero_write(lambda: self.call('new', 'authority_flip', event_id=event))
+        self.approve(event)
+        self.call('new', 'authority_flip', event_id=event)
+        self.refresh_fixture_identity()
+        self.assertEqual(self.entries[1]['generation'], 2)
+        self.rejected_zero_write(lambda: self.call('pm', 'checkpoint'))
+        self.rejected_zero_write(lambda: self.call('new', 'start', event_id=event, worker_token=token, evidence='synthetic://old'))
+        self.call('new', 'checkpoint')
 
     def approve(self, event, command='authority_flip'):
         review = self.call('new', 'handoff_review', event_id=event)
