@@ -77,10 +77,21 @@ class Adapter:
             p = json.loads(event["payload"]) if event else None
             handshake = bool(p and p["kind"] == "HANDOFF" and event["target"] == principal["task_id"]
                              and command in {"get", "reconcile", "ack", "start", "complete"})
-            if principal["state"] == "pending" and not handshake:
+            current_pm = ledger._pm_authority(db)["task_id"]
+            predecessor = next((e for e in entries if e["task_id"] == current_pm), None)
+            # Narrow owner-approved transition after the old PM is quiesced. A
+            # pending PM gains no ordinary PM privileges from its future role.
+            pm_transition = bool(principal["state"] == "pending" and principal["role"] == "PM"
+                and p and p["kind"] == "HANDOFF" and event["state"] == "COMPLETED"
+                and event["target"] == principal["task_id"] and p["source_task"] == current_pm
+                and predecessor and predecessor["state"] == "quiesced"
+                and predecessor["successor"] == {"task_id": principal["task_id"], "generation": generation}
+                and command in {"handoff_review", "authority_flip"})
+            if principal["state"] == "pending" and not (handshake or pm_transition):
                 raise Rejected("Pending successor may only reconcile its own HANDOFF")
             pm_only = {"override_priority", "authority_flip", "retire", "retirement", "release_stopped_worker", "handoff_review"}
-            if command in pm_only and principal["role"] != "PM":
+            if command in pm_only and (principal["role"] != "PM" or
+                    (principal["task_id"] != current_pm and not pm_transition)):
                 raise Rejected("PM-only control command")
             workers = {"get", "reconcile", "ack", "start", "renew", "complete", "terminate", "set_busy", "projection"}
             if principal["role"] not in {"PM", "Lead"} and (command not in workers or (
@@ -267,7 +278,7 @@ class Adapter:
         pm_last = True
         if predecessor["role"] == "PM":
             for other in entries.values():
-                if other["task_id"] == predecessor["task_id"] or not other["successor"]:
+                if other["task_id"] == predecessor["task_id"] or not other["successor"] or other["state"] == "retired":
                     continue
                 candidates = [dict(r) for r in db.execute("SELECT * FROM events WHERE state='COMPLETED'")
                               if json.loads(r["payload"])["source_task"] == other["task_id"]

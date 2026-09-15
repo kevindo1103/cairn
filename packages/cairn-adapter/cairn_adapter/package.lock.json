@@ -1,18 +1,19 @@
 {
-  "acceptance": "PACKAGE_ACCEPTED_ADAPTER_QC_PENDING",
+  "acceptance": "SOURCE_CANDIDATE_PACKAGE_AND_ADAPTER_ACCEPTANCE_PENDING",
   "module_lf_sha256": {
-    "__init__.py": "308bb551be2062721fd704b82d516f567121fde581e85c99181d8c5bd9690c70",
+    "__init__.py": "185913fcdb1f94b132e090eecb1d315b9bebe24b41657311780b9050add91d2b",
     "__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
     "api.py": "e62f2f7fa713a21f01f4b5c486844eacb4edd2c340fcf1ae9618f5bd18e13578",
     "cli.py": "a093c58662b805d776375576d7caf6332c938d2bff37a53d42139b737c793521",
-    "ledger.py": "d2acfd15e20c7bdab3b0a16ecc0dd80cfc782abf92cca0ca70ece63a7987b0e6",
+    "ledger.py": "ae171572a18220d9da48d2813060b21c405342d7d244127ab20ad773792ee6cc",
+    "migration.py": "6f5aaecc1a8894ab5917b37c7e23ffb5c8b1d7733c3322cf24bb4cf50ab0ac64",
     "server.py": "534b3f6d7ba344e8225e8c8823767d935482e10a6b4d2df367936686be15c85d",
     "transport.py": "2564e72ade4723b98591a5ad61ebf400764e33c6b66c3bceabbccf82f77269b3"
   },
-  "package_tree": "d21f0346b18f01f0bab41566200db88b6ac78d3a",
-  "schema_version": "1",
-  "source_commit": "f31726234c43c2ded4716c0998a8e4475ad25c19",
-  "tag": "communication-ledger-v0.1.0",
-  "tag_object": "065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f",
-  "version": "0.1.0"
+  "package_tree": "b207445cda7231917df89d210948a5fc19d0e923",
+  "schema_version": "2",
+  "source_commit": "39950de062ef085ed4e0ba5f87e3b48d6183d551",
+  "tag": "communication-ledger-v0.2.0",
+  "tag_object": null,
+  "version": "0.2.0"
 }

@@ -18,7 +18,8 @@ def review_snapshot(db, ledger, event, registry, fresh, checkpoint):
            "event_id": event["id"], "event_digest": event["digest"], "state": event["state"],
            "predecessor": public(source), "successor": public(target),
            "checkpoint": dict(checkpoint), "fresh_git": fresh,
-           "readback": None, "provenance": get_config(db, "event:" + event["id"])}
+           "readback": None, "provenance": get_config(db, "event:" + event["id"]),
+           "pm_authority": ledger._pm_authority(db)}
     unfinished = []
     for item in source["inventory"]["unfinished_work"]:
         if not isinstance(item, dict) or set(item) != {"task_id", "event_id", "status", "evidence"}:
@@ -78,9 +79,12 @@ def logical_control(db, ledger, command, event, registry, fresh, cp, principal, 
     old, new = entries[payload["source_task"]], entries[event["target"]]
     if command == "release_stopped_worker":
         return ledger.release_stopped_worker(event["id"], principal["task_id"], approved["evidence"])
-    # Core v0.1.0 permanently binds pm_task; never rewrite it in an adapter.
     if old["role"] == "PM":
-        raise Rejected("CORE_CHANGE_REQUIRED: PM succession needs a separate version-bumped package PR")
+        if new["role"] != "PM":
+            raise Rejected("PM succession requires a registry-bound PM successor")
+        if any(e["successor"] and e["task_id"] != old["task_id"] and e["state"] != "retired"
+               for e in entries.values()):
+            raise Rejected("PM-last requires every other mapped predecessor already retired")
     if command == "authority_flip":
         if db.execute("SELECT 1 FROM config WHERE key=?", ("adapter:flip:" + event["id"],)).fetchone():
             raise Rejected("Authority already flipped")
@@ -89,6 +93,13 @@ def logical_control(db, ledger, command, event, registry, fresh, cp, principal, 
             raise Rejected("Flip requires pending successor, completed handoff, quiescence and zero drain")
         previous = {"source": {"task_id": old["task_id"], "generation": old["generation"]},
                     "target": {"task_id": new["task_id"], "generation": new["generation"]}}
+        if old["role"] == "PM":
+            authority = review["snapshot"]["pm_authority"]
+            ledger.succeed_pm(actor=old["task_id"], event_id=event["id"],
+                expected_revision=authority["revision"], predecessor=old["task_id"], successor=new["task_id"],
+                predecessor_generation=old["generation"], successor_generation=new["generation"] + 1,
+                checkpoint_revision=cp["revision"], registry_revision=registry["revision"],
+                review_digest=review["digest"], evidence=approved["evidence"])
         old["generation"] += 1
         new["generation"] += 1
         new["state"] = "active"
@@ -97,6 +108,8 @@ def logical_control(db, ledger, command, event, registry, fresh, cp, principal, 
                    "source_generation": old["generation"], "target_generation": new["generation"],
                    "review_digest": review["digest"]})
     elif command == "retire":
+        if old["role"] == "PM" and ledger._pm_authority(db)["task_id"] != new["task_id"]:
+            raise Rejected("PM retirement requires the committed core succession first")
         if not assess(db, ledger, event, entries)["RETIRE_ALLOWED"]:
             raise Rejected("Retirement invariant is incomplete")
         old["state"] = "retired"
@@ -123,6 +136,8 @@ def preparation_snapshot(candidates):
         gaps = sorted(k for k in required if k not in candidate or candidate[k] is None or candidate[k] == "")
         if any(candidate.get(k) in (None, "", "TBD") for k in ("successor", "successor_ack", "runtime_evidence")):
             gaps += ["successor/ACK/runtime evidence unverified"]
+        if any(candidate.get(k) in (None, "", "TBD") for k in ("host_identity_evidence", "process_fencing_evidence")):
+            gaps += ["host identity/process fencing evidence unverified"]
         rows.append({"candidate": candidate, "gaps": gaps, "trusted_identity": False})
     return {"rows": rows, "status": "PREPARATION_ONLY", "authority_effect": False,
             "actions_executed": [], "AdapterAccepted": "NOT_PROVEN", "RecoveryProven": "NOT_PROVEN"}

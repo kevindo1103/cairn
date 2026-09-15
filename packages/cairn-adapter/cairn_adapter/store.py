@@ -84,7 +84,14 @@ class Store:
             from .package import verify_package
             if get_config(db, "package") != verify_package() or get_config(db, "registry_schema") != 2:
                 raise Rejected("Unsupported package or adapter registry schema; no implicit migration")
-            yield db, TransactionLedger(db, self.path, self.clock)
+            ledger = TransactionLedger(db, self.path, self.clock)
+            registry = get_config(db, "registry")
+            if registry["entries"]:
+                validate_pm_entries(db, ledger, registry["entries"])
+            yield db, ledger
+            registry = get_config(db, "registry")
+            if registry["entries"]:
+                validate_pm_entries(db, ledger, registry["entries"])
             db.commit()
         except BaseException:
             db.rollback()
@@ -220,6 +227,26 @@ def validate_entries(entries, previous, owner_hash):
             node = by_task[node["successor"]["task_id"]]
 
 
+def validate_pm_entries(db, ledger, entries):
+    """One current PM; historical PM tombstones and one pending successor allowed."""
+    current = ledger._pm_authority(db)["task_id"]
+    by_task = {e["task_id"]: e for e in entries}
+    pm = by_task.get(current)
+    if not pm or pm["role"] != "PM" or pm["state"] not in {"active", "quiesced"}:
+        raise Rejected("Registry must preserve the core's current PM authority")
+    historical = {r[0] for r in db.execute("SELECT task_id FROM pm_authority")} - {current}
+    for task in historical:
+        prior = by_task.get(task)
+        if not prior or prior["role"] != "PM" or prior["state"] not in {"quiesced", "retired"}:
+            raise Rejected("Historical PM identities remain fenced tombstones")
+    for candidate in entries:
+        if candidate["role"] != "PM" or candidate["task_id"] in historical | {current}:
+            continue
+        if candidate["state"] != "pending" or pm["successor"] != {
+                "task_id": candidate["task_id"], "generation": candidate["generation"]}:
+            raise Rejected("Only the mapped pending PM successor may hold a future PM role")
+
+
 class Owner:
     """Separate control-plane interface; never mounted as a worker command."""
     def __init__(self, store):
@@ -237,9 +264,7 @@ class Owner:
             validate_entries(entries, registry["entries"], owner_hash)
             if any(e["project"] != self.store.project for e in entries):
                 raise Rejected("Registry project differs from canonical database")
-            pm_task = db.execute("SELECT value FROM config WHERE key='pm_task'").fetchone()[0]
-            if [e["task_id"] for e in entries if e["role"] == "PM"] != [pm_task]:
-                raise Rejected("Registry must preserve the ledger's unique PM identity")
+            validate_pm_entries(db, ledger, entries)
             result = {"revision": expected_revision + 1, "entries": entries}
             put_config(db, "registry", result)
             ledger._audit(db, None, "registry-owner", "REGISTRY_CAS",
