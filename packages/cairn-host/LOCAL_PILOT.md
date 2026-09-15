@@ -3,7 +3,8 @@
 This rehearsal starts one Python fixture child over private stdio pipes. The
 parent uses the existing core and Adapter; it creates a new synthetic project,
 registry and one ordinary APPROVAL event. It exercises receipt, reconciliation,
-ACK, start, renew and completion. It does not exercise HANDOFF or succession.
+ACK, start, renew and completion. The separate handoff scenario exercises existing
+HANDOFF machinery and retirement eligibility, with no authority flip or retirement.
 The parent fixes the channel mapping and retains random fixture owner/principal
 credentials. The child receives only the event ID and its later worker lease.
 No credential is written to the result JSON or child command line.
@@ -31,12 +32,40 @@ The CLI accepts only the exact inert example config; no account, model, listener
 runtime install, service, scheduled task or Codex settings are involved.
 
 Use `--scenario` with happy, receipt_only, crash_after_ack, duplicate,
-wrong_mapping or impersonate. The last five are explicit fault fixtures.
+wrong_mapping, impersonate or handoff. The five ordinary negative scenarios are
+explicit fault fixtures; handoff adds governance checks to a real child lifecycle.
 The loop is bounded to 15 seconds, 12 requests and 64 KiB per frame. Cleanup
 may take up to seven additional seconds to reap only this fixture child.
 There is no automatic retry, lease release, queue replay or takeover.
 The CLI exits nonzero if the observed child exit/state/request counts do not match
 the selected scenario; merely producing an evidence file does not count as success.
+
+## HANDOFF eligibility rehearsal
+
+The child follows SENT, reconcile, ACK, STARTED, renew, COMPLETED. Current
+reconciliation is still required before ACK. Completion additionally requires the
+existing full inventory/readback and separate fixture Owner attestation. A Lead
+predecessor maps to an already active synthetic worker generation; this does not
+activate a pending worker or simulate an authority flip.
+
+ACK-only and COMPLETED with the predecessor still active each receive an exact
+owner-attested retire attempt: the existing retirement invariant must reject with
+zero logical writes. A consistent copy made before quiescence acquires a real
+STARTED lease for another event, then marks only the fixture predecessor quiesced
+through Owner CAS. Retirement must still reject; that lease/slot remains intact.
+The original fixture quiesces with no remaining work or leases: RETIRE_ALLOWED
+becomes true as an eligibility read only, retirement_authorized remains false,
+and actions_executed remains empty. No successful retire call occurs.
+
+The restored Store reopens and repeats the same retirement eligibility readback.
+This is synthetic recovery evidence; real isolated-host continuation remains a
+separate readiness gate. The retained branch proof is handoff-retained.json.
+
+The dedicated .github/workflows/cairn-host.yml runs on changes to host, adapter,
+core or itself. Windows/Python3.12 imports and checks the package pin, runs at
+least 15 discovered tests with zero skips, compiles, then executes the six ordinary
+scenarios and HANDOFF in real processes. CI uploads result/proof JSON only.
+Successful generic core/adapter CI does not substitute for this named host job.
 
 ## Evidence and recovery
 

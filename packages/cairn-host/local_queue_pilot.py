@@ -16,7 +16,7 @@ BASELINE = 'ee86e13ea44d1e3ac181e08418f624ea8f8b3d29'
 CORE = '39950de062ef085ed4e0ba5f87e3b48d6183d551'
 PROJECT = 'synthetic/local-cairn-pilot'
 SCOPE = 'local-pilot'
-MODES = ('happy', 'receipt_only', 'crash_after_ack', 'duplicate', 'wrong_mapping', 'impersonate')
+MODES = ('happy', 'receipt_only', 'crash_after_ack', 'duplicate', 'wrong_mapping', 'impersonate', 'handoff')
 CONFIG = dict(synthetic_only=True, activation_authorized=False, project=PROJECT,
               adapter_baseline=BASELINE, core_pin=CORE, timeout_seconds=15, max_messages=12)
 BINDING = dict(fixture='local-pilot-only', repository=PROJECT, worktree='synthetic-worktree',
@@ -54,24 +54,32 @@ class FixtureVerifier:
         return dict(issue='15', scope=SCOPE, base=CORE, head=BASELINE,
                     checkpoint='synthetic-local-pilot-1', evidence='synthetic://approved-fixture')
 
+    def verify_references(self, prs, issues):
+        if prs or issues:
+            raise ValueError('Only empty synthetic reference inventories accepted')
+
 
 class Pilot:
-    def __init__(self, root):
+    def __init__(self, root, *, handoff=False):
         self.api = dependencies()
         if self.api['verify_package']()['source_commit'] != CORE:
             raise ValueError('Unexpected core pin')
         self.root = exclusive_root(root)
         for name in ('broker', 'worker', 'evidence'):
             (self.root / name).mkdir()
-        self.tokens = {name: secrets.token_hex(32) for name in ('owner', 'pm', 'worker')}
+        self.tokens = {name: secrets.token_hex(32) for name in
+                       (('owner', 'pm', 'worker', 'old') if handoff else ('owner', 'pm', 'worker'))}
         self.mapping = dict(task_id='worker', session_id='synthetic-session-worker', generation=1)
         self.store = self.api['Store'].initialize(self.root / 'broker', PROJECT, 'pm', self.tokens['owner'])
-        entries = [self.entry('pm', 'PM'), self.entry('worker', 'worker')]
-        self.revision = self.api['Owner'](self.store).replace(self.tokens['owner'], 0, entries)['revision']
+        self.entries = [self.entry('pm', 'PM'), self.entry('worker', 'worker')]
+        if handoff:
+            self.entries.append(self.entry('old', 'Lead'))
+            self.entries[-1]['successor'] = dict(task_id='worker', generation=1)
+        self.revision = self.api['Owner'](self.store).replace(self.tokens['owner'], 0, self.entries)['revision']
         self.adapter = self.api['Adapter'](self.store, FixtureVerifier(), host_identity=self.identity)
         self.call('pm', 'checkpoint')
-        self.event = self.call('pm', 'enqueue', dedupe_key='synthetic-single-event', target='worker',
-                               kind='APPROVAL', priority=1, dependency=None,
+        self.event = self.call('old' if handoff else 'pm', 'enqueue', dedupe_key='synthetic-single-event', target='worker',
+                               kind='HANDOFF' if handoff else 'APPROVAL', priority=1, dependency=None,
                                next_action='Return synthetic IPC lifecycle evidence')['id']
         self.delivery = self.call('pm', 'claim', event_id=self.event)['delivery_token']
         self.records = []
@@ -82,6 +90,13 @@ class Pilot:
                   if task == 'pm' else
                   {'reconcile': ['SENT'], 'ack': ['SENT'], 'start': ['ACKED'],
                    'renew': ['STARTED'], 'complete': ['STARTED']})
+        if 'old' in self.tokens and task == 'pm':
+            for command in ('retirement', 'handoff_review', 'retire'):
+                grants[command] = ['ACKED', 'COMPLETED']
+            grants['handoff_review'].append('STARTED')
+        if task == 'old':
+            grants['enqueue'] = ['ABSENT']
+            grants['get'] = ['SENT', 'ACKED', 'STARTED', 'COMPLETED']
         inventory = dict(unfinished_work=[], prs=[], issues=[], blockers=[])
         return dict(task_id=task, credential_hash=self.api['credential_hash'](self.tokens[task]),
                     generation=1, state='active', role=role, bindings={SCOPE: copy.deepcopy(BINDING)},
@@ -96,8 +111,9 @@ class Pilot:
     def identity(self, token):
         if token == self.tokens['worker']:
             return self.mapping.copy()
-        if token == self.tokens['pm']:
-            return dict(task_id='pm', session_id='synthetic-session-pm', generation=1)
+        for task in ('pm', 'old'):
+            if task in self.tokens and token == self.tokens[task]:
+                return dict(task_id=task, session_id='synthetic-session-' + task, generation=1)
         return None
 
     def call(self, actor, command, **arguments):
@@ -149,14 +165,14 @@ class Pilot:
             retained = db.execute("SELECT COUNT(*) FROM recipients WHERE active_event IS NOT NULL").fetchone()[0]
         expected_states = {'happy': 'COMPLETED', 'duplicate': 'COMPLETED',
                            'crash_after_ack': 'ACKED', 'receipt_only': 'SENT',
-                           'wrong_mapping': 'SENT', 'impersonate': 'SENT'}
+                           'wrong_mapping': 'SENT', 'impersonate': 'SENT', 'handoff': 'COMPLETED'}
         expected_requests = {'happy': 6, 'duplicate': 8, 'crash_after_ack': 3,
-                             'receipt_only': 1, 'wrong_mapping': 2, 'impersonate': 2}
+                             'receipt_only': 1, 'wrong_mapping': 2, 'impersonate': 2, 'handoff': 6}
         expected_rejects = 2 if mode == 'duplicate' else int(mode in {'wrong_mapping', 'impersonate'})
         scenario_passed = (stop_reason == 'CHILD_EXIT' and child_pid != os.getpid()
                            and exit_code == (74 if mode == 'crash_after_ack' else 0)
                            and self.state() == expected_states[mode]
-                           and completions == int(mode in {'happy', 'duplicate'})
+                           and completions == int(mode in {'happy', 'duplicate', 'handoff'})
                            and retained == int(mode == 'crash_after_ack')
                            and len(self.records) == expected_requests[mode]
                            and sum(not r['accepted'] for r in self.records) == expected_rejects)
@@ -168,8 +184,107 @@ class Pilot:
                         stop_reason=stop_reason, event_id=self.event, final_state=self.state(),
                         completion_count=completions, retained_slots=retained,
                         requests=self.records, backup_restore_equal=True, recovery_proof=saved)
+        if mode == 'handoff':
+            evidence['handoff_checks'] = self.handoff_checks
+            recovered = copy.copy(self)
+            recovered.store = reopened
+            recovered.adapter = self.api['Adapter'](reopened, FixtureVerifier(), host_identity=recovered.identity)
+            recovered_status = recovered.call('pm', 'retirement', event_id=self.event)
+            evidence['restored_retirement_readback'] = recovered_status
+            evidence['scenario_passed'] = bool(scenario_passed and len(self.handoff_checks) == 4
+                and all(check['passed'] for check in self.handoff_checks.values())
+                and recovered_status == self.handoff_checks['full_conjunction']['eligibility'])
         (self.root / 'evidence' / 'result.json').write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
         return evidence
+
+
+class HandoffPilot(Pilot):
+    """Exercise existing HANDOFF governance; never execute flip or retirement."""
+    def __init__(self, root):
+        super().__init__(root, handoff=True)
+        self.handoff_checks = {}
+
+    def assess(self, label, expected, *, attempt_retire=False):
+        eligibility = self.call('pm', 'retirement', event_id=self.event)
+        if eligibility['RETIRE_ALLOWED'] != expected or eligibility['retirement_authorized']:
+            raise AssertionError('Unexpected synthetic retirement eligibility')
+        denied = None
+        if attempt_retire:
+            review = self.call('pm', 'handoff_review', event_id=self.event)
+            self.api['Owner'](self.store).attest(self.tokens['owner'], self.revision, self.event,
+                                              'retire', review['digest'], 'synthetic://deny-retire')
+            before = self.api['proof'](self.store.path)
+            try:
+                self.call('pm', 'retire', event_id=self.event)
+            except ValueError as error:
+                if str(error) != 'Retirement invariant is incomplete':
+                    raise AssertionError('Retire denied at wrong gate') from error
+                denied = self.api['proof'](self.store.path) == before
+            else:
+                raise AssertionError('Retirement mutated the fixture')
+            if not denied:
+                raise AssertionError('Rejected retirement was not zero-write')
+        check = dict(passed=True, eligibility=eligibility, retire_rejected_zero_write=denied)
+        self.handoff_checks[label] = check
+        return check
+
+    def quiesce_fixture_old(self):
+        self.entries = copy.deepcopy(self.entries)
+        old = next(e for e in self.entries if e['task_id'] == 'old')
+        old['state'] = 'quiesced'
+        old['quiescence'] = dict(evidence='synthetic://fixture-quiescence', active_mutations=0,
+                                 unmapped_work=0, ownership_ambiguity=0)
+        self.revision = self.api['Owner'](self.store).replace(
+            self.tokens['owner'], self.revision, self.entries)['revision']
+
+    def handle(self, message):
+        result = super().handle(message)
+        # Approval follows successful renewal, separately from a future completion
+        # request. A rejected completion must not itself write an owner attestation.
+        if result['ok'] and message['command'] == 'renew':
+            review = self.call('pm', 'handoff_review', event_id=self.event)
+            self.api['Owner'](self.store).attest(self.tokens['owner'], self.revision, self.event,
+                                              'complete', review['digest'], 'synthetic://child-complete')
+        if result['ok'] and message['command'] == 'ack':
+            self.assess('ack_only', False, attempt_retire=True)
+        if result['ok'] and message['command'] == 'complete':
+            self.assess('completed_predecessor_active', False, attempt_retire=True)
+        return result
+
+    def finish(self, child_pid, exit_code, stop_reason, mode):
+        if self.state() == 'COMPLETED':
+            # Fork before quiescence. Keep the retained-lease branch intact; no raw
+            # SQL cleanup, time-travel, lease release or synthetic takeover.
+            saved = self.api['backup'](self.store.path, self.root / 'evidence' / 'before-quiesce.sqlite')
+            self.api['restore'](self.root / 'evidence' / 'before-quiesce.sqlite',
+                                self.root / 'retained-branch', saved, PROJECT)
+            branch = copy.copy(self)
+            branch.handoff_checks = {}
+            branch.store = self.api['Store'](self.root / 'retained-branch', PROJECT)
+            branch.adapter = self.api['Adapter'](branch.store, FixtureVerifier(), host_identity=branch.identity)
+            busy = branch.call('old', 'enqueue', dedupe_key='retained-lease', target='old', kind='APPROVAL',
+                               priority=1, dependency=None, next_action='Synthetic retained worker')['id']
+            token = branch.call('pm', 'claim', event_id=busy)['delivery_token']
+            branch.call('pm', 'sent', event_id=busy, delivery_token=token, receipt='synthetic://retained')
+            branch.call('old', 'reconcile', event_id=busy)
+            worker = branch.call('old', 'ack', event_id=busy)['worker_token']
+            branch.call('old', 'start', event_id=busy, worker_token=worker, evidence='synthetic://retained-start')
+            branch.quiesce_fixture_old()
+            check = branch.assess('quiesced_retained_lease', False, attempt_retire=True)
+            with branch.store.transaction() as (db, ledger):
+                retained = ledger._get(db, busy)
+                check['retained_worker_state'] = retained['state']
+                check['retained_worker_lease'] = retained['worker_token'] is not None
+                check['retained_slot'] = bool(db.execute(
+                    'SELECT 1 FROM recipients WHERE active_event=?', (busy,)).fetchone())
+            if not check['retained_worker_lease'] or not check['retained_slot']:
+                raise AssertionError('Retained lease fixture missing')
+            self.handoff_checks['quiesced_retained_lease'] = check
+            (self.root / 'evidence' / 'handoff-retained.json').write_text(json.dumps(
+                dict(check=check, proof=self.api['proof'](branch.store.path)), indent=2) + '\n', encoding='utf-8')
+            self.quiesce_fixture_old()
+            self.assess('full_conjunction', True)  # Eligibility read only, no retire call.
+        return super().finish(child_pid, exit_code, stop_reason, mode)
 
 
 def child(mode):
@@ -205,7 +320,7 @@ def child(mode):
 def run(root, mode='happy'):
     if mode not in MODES:
         raise ValueError('Unknown synthetic scenario')
-    pilot = Pilot(root)
+    pilot = HandoffPilot(root) if mode == 'handoff' else Pilot(root)
     if mode == 'wrong_mapping':
         pilot.mapping['task_id'] = 'pm'
     lines = queue.Queue(maxsize=16)

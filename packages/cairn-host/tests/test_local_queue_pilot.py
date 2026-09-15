@@ -105,5 +105,69 @@ class LocalPilotTests(unittest.TestCase):
             pilot.exclusive_root(Path(self.temp.name) / '..' / 'escaped')
 
 
+class HandoffTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.result = pilot.run(Path(cls.temp.name) / 'handoff', 'handoff')
+        if not cls.result['scenario_passed']:
+            raise AssertionError('HANDOFF process rehearsal failed')
+
+    def test_ack_only_cannot_retire(self):
+        check = self.result['handoff_checks']['ack_only']
+        self.assertFalse(check['eligibility']['HANDOFF_COMPLETED'])
+        self.assertFalse(check['eligibility']['RETIRE_ALLOWED'])
+        self.assertTrue(check['retire_rejected_zero_write'])
+
+    def test_completed_with_active_predecessor_cannot_retire(self):
+        check = self.result['handoff_checks']['completed_predecessor_active']
+        self.assertTrue(check['eligibility']['HANDOFF_COMPLETED'])
+        self.assertFalse(check['eligibility']['predecessor_QUIESCED'])
+        self.assertTrue(check['retire_rejected_zero_write'])
+
+    def test_quiesced_with_real_retained_lease_cannot_retire(self):
+        check = self.result['handoff_checks']['quiesced_retained_lease']
+        self.assertTrue(check['eligibility']['HANDOFF_COMPLETED'])
+        self.assertTrue(check['eligibility']['predecessor_QUIESCED'])
+        self.assertFalse(check['eligibility']['drain_ZERO'])
+        self.assertTrue(check['retained_worker_lease'])
+        self.assertTrue(check['retained_slot'])
+        self.assertEqual(check['retained_worker_state'], 'STARTED')
+        self.assertTrue(check['retire_rejected_zero_write'])
+
+    def test_full_conjunction_is_eligibility_only_and_survives_restore(self):
+        check = self.result['handoff_checks']['full_conjunction']
+        self.assertTrue(check['eligibility']['RETIRE_ALLOWED'])
+        self.assertTrue(check['eligibility']['successor_ACTIVE_generation'])
+        self.assertFalse(check['eligibility']['retirement_authorized'])
+        self.assertEqual(check['eligibility']['actions_executed'], [])
+        self.assertIsNone(check['retire_rejected_zero_write'])
+        self.assertEqual(check['eligibility'], self.result['restored_retirement_readback'])
+        self.assertTrue(self.result['backup_restore_equal'])
+
+    def test_ack_still_requires_current_reconciliation(self):
+        local = pilot.HandoffPilot(Path(self.temp.name) / 'no-reconcile')
+        self.assertTrue(local.handle(dict(command='receipt', event_id=local.event, arguments={}))['ok'])
+        before = local.api['proof'](local.store.path)
+        self.assertFalse(local.handle(dict(command='ack', event_id=local.event, arguments={}))['ok'])
+        self.assertEqual(local.api['proof'](local.store.path), before)
+        self.assertEqual(local.state(), 'SENT')
+
+    def test_bad_completion_token_does_not_write_owner_attestation(self):
+        local = pilot.HandoffPilot(Path(self.temp.name) / 'bad-complete')
+        def send(command, **arguments):
+            return local.handle(dict(command=command, event_id=local.event, arguments=arguments))
+        for command in ('receipt', 'reconcile'):
+            self.assertTrue(send(command)['ok'])
+        token = send('ack')['worker_token']
+        self.assertTrue(send('start', worker_token=token, evidence='synthetic://start')['ok'])
+        self.assertTrue(send('renew', worker_token=token)['ok'])
+        before = local.api['proof'](local.store.path)
+        self.assertFalse(send('complete', worker_token='wrong', evidence='synthetic://child-complete')['ok'])
+        self.assertEqual(local.api['proof'](local.store.path), before)
+        self.assertEqual(local.state(), 'STARTED')
+
+
 if __name__ == '__main__':
     unittest.main()
