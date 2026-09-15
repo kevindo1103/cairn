@@ -1,0 +1,92 @@
+{
+  "synthetic_only": true,
+  "backup": {
+    "digest": "abaa38b122abd04f6e2f8a43c8998861f92b3e5ed50310978a6c44bdbf78c874",
+    "history_high_water": 9,
+    "schema_version": "1",
+    "project": "synthetic/repo",
+    "pm_task": "pm",
+    "package": {
+      "package_tree": "d21f0346b18f01f0bab41566200db88b6ac78d3a",
+      "source_commit": "f31726234c43c2ded4716c0998a8e4475ad25c19",
+      "tag": "communication-ledger-v0.1.0",
+      "tag_object": "065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f",
+      "version": "0.1.0"
+    },
+    "registry_revision": 1,
+    "generations": {
+      "pm": 1,
+      "old": 1,
+      "new": 1,
+      "other": 1
+    },
+    "tables": {
+      "checkpoints": 1,
+      "config": 9,
+      "events": 1,
+      "history": 9,
+      "recipients": 1,
+      "sqlite_sequence": 1
+    }
+  },
+  "restored_before_run": {
+    "digest": "abaa38b122abd04f6e2f8a43c8998861f92b3e5ed50310978a6c44bdbf78c874",
+    "history_high_water": 9,
+    "schema_version": "1",
+    "project": "synthetic/repo",
+    "pm_task": "pm",
+    "package": {
+      "package_tree": "d21f0346b18f01f0bab41566200db88b6ac78d3a",
+      "source_commit": "f31726234c43c2ded4716c0998a8e4475ad25c19",
+      "tag": "communication-ledger-v0.1.0",
+      "tag_object": "065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f",
+      "version": "0.1.0"
+    },
+    "registry_revision": 1,
+    "generations": {
+      "pm": 1,
+      "old": 1,
+      "new": 1,
+      "other": 1
+    },
+    "tables": {
+      "checkpoints": 1,
+      "config": 9,
+      "events": 1,
+      "history": 9,
+      "recipients": 1,
+      "sqlite_sequence": 1
+    }
+  },
+  "after_reconciled_execution": {
+    "digest": "3a76fb15a9ec24154d7b3f5275e1a103ed8e9f933d2f1be04df26e5136847409",
+    "history_high_water": 12,
+    "schema_version": "1",
+    "project": "synthetic/repo",
+    "pm_task": "pm",
+    "package": {
+      "package_tree": "d21f0346b18f01f0bab41566200db88b6ac78d3a",
+      "source_commit": "f31726234c43c2ded4716c0998a8e4475ad25c19",
+      "tag": "communication-ledger-v0.1.0",
+      "tag_object": "065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f",
+      "version": "0.1.0"
+    },
+    "registry_revision": 1,
+    "generations": {
+      "pm": 1,
+      "old": 1,
+      "new": 1,
+      "other": 1
+    },
+    "tables": {
+      "checkpoints": 1,
+      "config": 11,
+      "events": 1,
+      "history": 12,
+      "recipients": 1,
+      "sqlite_sequence": 1
+    }
+  },
+  "result_state": "COMPLETED",
+  "production_recovery": "NOT_PROVEN"
+}

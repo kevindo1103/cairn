@@ -1,0 +1,41 @@
+test_01_impersonation_and_owner_separation (test_adapter.NegativeMatrix.test_01_impersonation_and_owner_separation) ... ok
+test_02_registry_cas_and_stale_generation (test_adapter.NegativeMatrix.test_02_registry_cas_and_stale_generation) ... ok
+test_03_acl_command_scope_and_state (test_adapter.NegativeMatrix.test_03_acl_command_scope_and_state) ... ok
+test_04_stale_head_and_no_checkpoint_fallback (test_adapter.NegativeMatrix.test_04_stale_head_and_no_checkpoint_fallback) ... ok
+test_05_unavailable_git_github_fails_closed (test_adapter.NegativeMatrix.test_05_unavailable_git_github_fails_closed) ... ok
+test_06_changed_manifest_rule_scope_authority (test_adapter.NegativeMatrix.test_06_changed_manifest_rule_scope_authority) ... ok
+test_07_duplicate_event_claim_and_competing_dispatchers (test_adapter.NegativeMatrix.test_07_duplicate_event_claim_and_competing_dispatchers) ... ok
+test_08_duplicate_successor_and_cycles (test_adapter.NegativeMatrix.test_08_duplicate_successor_and_cycles) ... ok
+test_09_busy_recipient_retains_queue (test_adapter.NegativeMatrix.test_09_busy_recipient_retains_queue) ... ok
+test_10_expired_worker_unconfirmed_retains_slot (test_adapter.NegativeMatrix.test_10_expired_worker_unconfirmed_retains_slot) ... ok
+test_11_stolen_expired_and_completed_tokens (test_adapter.NegativeMatrix.test_11_stolen_expired_and_completed_tokens) ... ok
+test_12_ack_without_or_after_stale_reconciliation (test_adapter.NegativeMatrix.test_12_ack_without_or_after_stale_reconciliation) ... ok
+test_13_delivery_failure_restart_and_retry_exhaustion (test_adapter.NegativeMatrix.test_13_delivery_failure_restart_and_retry_exhaustion) ... ok
+test_14_missing_ack_and_terminal_projection (test_adapter.NegativeMatrix.test_14_missing_ack_and_terminal_projection) ... ok
+test_15_retirement_requires_all_invariants (test_adapter.NegativeMatrix.test_15_retirement_requires_all_invariants) ... ok
+test_16_exact_sqlite_backup_restore_and_project_isolation (test_adapter.NegativeMatrix.test_16_exact_sqlite_backup_restore_and_project_isolation) ... ok
+test_17_forged_pm_lead_and_unavailable_host_identity (test_adapter.NegativeMatrix.test_17_forged_pm_lead_and_unavailable_host_identity) ... ok
+test_18_pending_atomic_flip_and_permanently_stale_old_tokens (test_adapter.NegativeMatrix.test_18_pending_atomic_flip_and_permanently_stale_old_tokens) ... ok
+test_19_ack_no_start_and_start_without_current_reconcile (test_adapter.NegativeMatrix.test_19_ack_no_start_and_start_without_current_reconcile) ... ok
+test_20_full_completion_inventory_host_evidence_and_rule_drift (test_adapter.NegativeMatrix.test_20_full_completion_inventory_host_evidence_and_rule_drift) ... ok
+test_21_completed_before_quiesce_and_ownership_ambiguity (test_adapter.NegativeMatrix.test_21_completed_before_quiesce_and_ownership_ambiguity) ... ok
+test_22_projection_mismatch_and_untrusted_snapshot_gaps (test_adapter.NegativeMatrix.test_22_projection_mismatch_and_untrusted_snapshot_gaps) ... ok
+test_23_unsupported_schema_and_package_fail_closed (test_adapter.NegativeMatrix.test_23_unsupported_schema_and_package_fail_closed) ... ok
+test_24_restore_run_and_compare_every_durable_truth (test_adapter.NegativeMatrix.test_24_restore_run_and_compare_every_durable_truth) ... ok
+test_changed_package_refused_before_any_ledger_write (test_adapter.NegativeMatrix.test_changed_package_refused_before_any_ledger_write) ... ok
+test_cross_scope_timeout_reap_is_rolled_back (test_adapter.NegativeMatrix.test_cross_scope_timeout_reap_is_rolled_back) ... ok
+test_pm_last_requires_other_predecessor_drain (test_adapter.NegativeMatrix.test_pm_last_requires_other_predecessor_drain) ... ok
+test_quiesced_source_cannot_acquire_delivery (test_adapter.NegativeMatrix.test_quiesced_source_cannot_acquire_delivery) ... ok
+test_registry_cas_serializes_with_verification_and_claim (test_adapter.NegativeMatrix.test_registry_cas_serializes_with_verification_and_claim) ... ok
+test_dirty_source_wrong_remote_and_branch (test_verifier.VerifierTests.test_dirty_source_wrong_remote_and_branch) ... ok
+test_handoff_reference_body_head_and_unreachable_evidence (test_verifier.VerifierTests.test_handoff_reference_body_head_and_unreachable_evidence) ... ok
+test_manifest_rule_versions_and_path_scope_mismatches (test_verifier.VerifierTests.test_manifest_rule_versions_and_path_scope_mismatches) ... ok
+test_real_git_positive_and_every_call_rechecks_github (test_verifier.VerifierTests.test_real_git_positive_and_every_call_rechecks_github) ... ok
+test_remote_identity_base_head_tree_plan_changes_fail_closed (test_verifier.VerifierTests.test_remote_identity_base_head_tree_plan_changes_fail_closed) ... ok
+test_remote_moves_during_verification (test_verifier.VerifierTests.test_remote_moves_during_verification) ... ok
+test_unavailable_tool_and_malformed_api_are_rejections (test_verifier.VerifierTests.test_unavailable_tool_and_malformed_api_are_rejections) ... ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 18.712s
+
+OK
