@@ -185,7 +185,9 @@ def main():
         if args.observation:
             parser.error('prepare accepts no observation')
         repo = Path(__file__).resolve().parents[2]
-        head = subprocess.check_output(['git', '-c', 'core.excludesFile=', '-C', str(repo),
+        head = subprocess.check_output(['git', '-c', 'core.excludesFile=',
+                                        '-c', 'safe.directory=' + str(repo).replace('\\', '/'),
+                                        '-C', str(repo),
                                         'rev-parse', 'HEAD'], text=True).strip()
         result = prepare(args.root, head)
     else:
