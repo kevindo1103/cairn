@@ -1,0 +1,9 @@
+{
+  "synthetic_only": true,
+  "activation_authorized": false,
+  "project": "synthetic/local-cairn-pilot",
+  "adapter_baseline": "ee86e13ea44d1e3ac181e08418f624ea8f8b3d29",
+  "core_pin": "39950de062ef085ed4e0ba5f87e3b48d6183d551",
+  "timeout_seconds": 15,
+  "max_messages": 12
+}
