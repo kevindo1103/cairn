@@ -83,7 +83,7 @@ def prepare(root, head, *, recipient=RECIPIENT, dedupe=DEDUPE):
     root = exclusive_root(root)
     (root / 'broker').mkdir()
     (root / 'evidence').mkdir()
-    tokens = {actor: secrets.token_hex(32) for actor in ('owner', 'pm', RECIPIENT)}
+    tokens = {actor: secrets.token_hex(32) for actor in ('owner', 'pm', recipient)}
     # Reuse existing fixture registry shape and pinned Adapter; no new lifecycle.
     fixture = object.__new__(Uat)
     fixture.api, fixture.tokens, fixture.recipient = api, tokens, recipient

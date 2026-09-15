@@ -117,6 +117,17 @@ class ExistingTaskUatTests(unittest.TestCase):
         self.assertEqual(result['origin']['evidence_ref'], reference)
         self.assertEqual(result['principal_enforcement'], 'NOT_PROVEN')
 
+    def test_prepare_binds_a_host_owned_recipient_and_dedupe(self):
+        root = Path(self.temp.name) / 'host-owned'
+        recipient = 'host-owned-thread'
+        public = uat.prepare(root, 'b' * 40, recipient=recipient, dedupe='cairn:host-owned:001')
+        self.assertEqual(public['recipient'], recipient)
+        self.assertEqual(public['envelope']['dedupe'], 'cairn:host-owned:001')
+        sent = dict(observer='PM_MANUAL_PLATFORM_READBACK',
+                    origin=dict(thread_id=recipient, turn_id=None, evidence_ref='artifact://fixture/sent'),
+                    readback=dict(public['envelope'], action=uat.ACTION['sent']))
+        self.assertEqual(uat.import_observation(root, 'sent', sent)['state'], 'SENT')
+
 
 if __name__ == '__main__':
     unittest.main()
