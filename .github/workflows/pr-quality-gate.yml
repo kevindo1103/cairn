@@ -48,6 +48,7 @@ jobs:
           python-version: '3.11'
       - name: Detect adapter delta
         id: adapter_delta
+        working-directory: ${{ github.workspace }}
         shell: bash
         run: |
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
