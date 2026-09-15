@@ -166,10 +166,10 @@ def import_observation(root, stage, observation, *, clock=time.time):
             call('pm', 'sent', event_id=uat.event, delivery_token=token, receipt=origin['evidence_ref'])
             config['sent_at'] = clock()
         elif stage == 'ack':
-            call(RECIPIENT, 'reconcile', event_id=uat.event)
-            call(RECIPIENT, 'ack', event_id=uat.event)
+            call(uat.recipient, 'reconcile', event_id=uat.event)
+            call(uat.recipient, 'ack', event_id=uat.event)
         else:
-            call(RECIPIENT, stage, event_id=uat.event, worker_token=row['worker_token'], evidence=origin['evidence_ref'])
+            call(uat.recipient, stage, event_id=uat.event, worker_token=row['worker_token'], evidence=origin['evidence_ref'])
         config['imports'][stage] = dict(origin=origin, observation_digest=uat.api['digest'](observation))
         put_config(db, 'uat', config)
         ledger._audit(db, uat.event, 'pm-manual-observer', 'UAT_' + stage.upper(), config['imports'][stage])

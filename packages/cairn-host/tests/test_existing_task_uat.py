@@ -123,10 +123,18 @@ class ExistingTaskUatTests(unittest.TestCase):
         public = uat.prepare(root, 'b' * 40, recipient=recipient, dedupe='cairn:host-owned:001')
         self.assertEqual(public['recipient'], recipient)
         self.assertEqual(public['envelope']['dedupe'], 'cairn:host-owned:001')
-        sent = dict(observer='PM_MANUAL_PLATFORM_READBACK',
-                    origin=dict(thread_id=recipient, turn_id=None, evidence_ref='artifact://fixture/sent'),
-                    readback=dict(public['envelope'], action=uat.ACTION['sent']))
-        self.assertEqual(uat.import_observation(root, 'sent', sent)['state'], 'SENT')
+        def observed(stage):
+            readback = dict(public['envelope'], action=uat.ACTION[stage])
+            if stage == 'complete':
+                readback['result'] = 42
+            return dict(observer='PM_MANUAL_PLATFORM_READBACK',
+                        origin=dict(thread_id=recipient,
+                                    turn_id=None if stage == 'sent' else
+                                    ('host-ack' if stage == 'ack' else 'host-work'),
+                                    evidence_ref='artifact://fixture/' + stage),
+                        readback=readback)
+        for stage, state in zip(uat.ACTION, ('SENT', 'ACKED', 'STARTED', 'COMPLETED')):
+            self.assertEqual(uat.import_observation(root, stage, observed(stage))['state'], state)
 
 
 if __name__ == '__main__':
