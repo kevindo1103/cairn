@@ -482,7 +482,7 @@ class NegativeMatrix(unittest.TestCase):
         self.call("new", "start", event_id=event, worker_token=token, evidence="synthetic://start")
         snapshot_path = self.root / "recovery.sqlite"
         expected = backup(self.store.path, snapshot_path)
-        self.assertEqual(expected["package"]["version"], "0.1.0")
+        self.assertEqual(expected["package"]["version"], "0.2.0")
         self.assertEqual(expected["registry_revision"], self.revision)
         self.assertEqual(expected["generations"]["new"], 1)
         self.assertEqual(restore(snapshot_path, self.root / "recover-run", expected, "synthetic/repo"), expected)

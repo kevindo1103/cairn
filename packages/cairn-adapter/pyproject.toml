@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cairn-principal-adapter"
-version = "0.1.0.dev0"
+version = "0.2.0"
 description = "Review-only principal-bound adapter for the communication ledger"
 requires-python = ">=3.11"
-dependencies = ["codex-communication-ledger==0.1.0"]
+dependencies = ["codex-communication-ledger==0.2.0"]
 
 [tool.setuptools.packages.find]
 include = ["cairn_adapter*"]

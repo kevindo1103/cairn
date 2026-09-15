@@ -1,4 +1,8 @@
-# STOP: PM identity migration needs a separate package version
+# Historical issue #10 proposal: separate PM succession package
+
+Superseded for source preparation by issue #15's separately versioned core and
+adapter candidates. See PM_SUCCESSION_V020.md for current implementation and
+acceptance gaps. The following records the pre-implementation v0.1.0 boundary.
 
 Current package: communication-ledger 0.1.0, communication-ledger-v0.1.0,
 merge f31726234c43c2ded4716c0998a8e4475ad25c19.

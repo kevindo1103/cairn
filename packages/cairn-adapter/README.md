@@ -1,14 +1,15 @@
-# Cairn adapter — canonical 24-case contract
+# Cairn adapter — 0.2.0 PM succession source candidate
 
-Review-only library for issue #10. Base main/package merge:
-`f31726234c43c2ded4716c0998a8e4475ad25c19`; package version `0.1.0`, tag
-`communication-ledger-v0.1.0`, annotated object
-`065fd4c19a952f1af2f5c0a04e31e7fe462e1d7f`. The package tree remains
-`d21f0346b18f01f0bab41566200db88b6ac78d3a`. Only `packages/cairn-adapter/**`
-is owned by this branch. No core lifecycle/schema changes or second store.
+Review-only library for issue #15, extending the accepted issue #10 adapter.
+Version 0.2.0 binds core candidate `ec4004d59369392ebf6c49c8f6c15c733b3434ac`,
+package tree `75665794d2f19d0e924c08e9c97a03beb27c859f`, with exact module hashes.
+The planned `communication-ledger-v0.2.0` tag has no accepted tag object yet.
+Core changes belong to the separate core PR; this stacked diff owns only
+`packages/cairn-adapter/**`. The same project SQLite store is retained.
 
-Current contract: this README, MATRIX24.md and CONTRACT24_VALIDATION.md. Older
-VALIDATION.md, RECONCILIATION.md and ACCEPTED_PACKAGE.md are historical checkpoints.
+Current addition: PM_SUCCESSION_V020.md and SUCCESSION_VALIDATION.md. MATRIX24.md
+describes the retained issue #10 contract; its validation and other acceptance
+documents are historical checkpoints, not acceptance of version 0.2.0.
 
 ## Trust and authorization
 
@@ -86,10 +87,10 @@ Completion before quiescence is permitted by the required HANDOFF-then-quiesce o
 it does not authorize flip/retirement. Case 21 verifies refusal before quiescence and
 with nonzero ambiguity. Filesystem/process quiescence still needs external proof.
 
-STOP: core v0.1.0 permanently binds pm_task. PM succession/retirement cannot be enabled
-by silently rewriting that key. The prototype explicitly refuses it. See
-PM_CORE_CHANGE_PROPOSAL.md for a separately reviewed, version-bumped package proposal.
-That package change has NOT been implemented; full PM migration acceptance is blocked.
+Core v0.2.0 preserves bootstrap pm_task and adds an append-only PM authority epoch.
+The owner-reviewed PM transition is described in PM_SUCCESSION_V020.md. A pending
+successor receives only a narrow completed-HANDOFF review/flip exception; current
+PM privileges follow the committed epoch. Live migration acceptance remains blocked.
 
 ## Recovery and preparation
 

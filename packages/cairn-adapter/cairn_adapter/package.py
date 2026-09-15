@@ -18,4 +18,5 @@ def verify_package():
             or EXPECTED_SCHEMA_VERSION != lock["schema_version"]):
         raise Rejected("Ledger package changed; bind and revalidate the accepted package version")
     return {"version": lock["version"], "source_commit": lock["source_commit"],
-            "tag": lock["tag"], "tag_object": lock["tag_object"], "package_tree": lock["package_tree"]}
+            "tag": lock["tag"], "tag_object": lock["tag_object"], "package_tree": lock["package_tree"],
+            "acceptance": lock["acceptance"]}
