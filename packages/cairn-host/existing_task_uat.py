@@ -24,7 +24,8 @@ def read_json(path):
                 raise ValueError('Duplicate JSON field')
             result[key] = value
         return result
-    raw = Path(path).read_bytes()
+    with Path(path).open('rb') as stream:
+        raw = stream.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise ValueError('Import size limit exceeded')
     return json.loads(raw, object_pairs_hook=unique, parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Non-finite JSON')))
