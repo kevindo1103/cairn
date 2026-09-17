@@ -10,6 +10,7 @@ ARGUMENTS = {
     "checkpoint": set(),
     "enqueue": {"dedupe_key", "target", "kind", "priority", "dependency", "next_action"},
     "claim": {"event_id"}, "sent": {"event_id", "delivery_token", "receipt"},
+    "late_sent": {"event_id", "delivery_token", "receipt", "confirmation"},
     "delivery_failed": {"event_id", "delivery_token", "evidence"},
     "reconcile": {"event_id"}, "ack": {"event_id"},
     "start": {"event_id", "worker_token", "evidence"},
@@ -27,12 +28,13 @@ ARGUMENTS = {
 
 
 class Adapter:
-    def __init__(self, store, verifier, *, host_identity=None):
+    def __init__(self, store, verifier, *, host_identity=None, late_delivery_authority=None):
         # Host dependency injection only, never request fields or a worker factory.
         from .package import verify_package
         self.package_binding = verify_package()
         self._store, self._verifier = store, verifier
         self._host_identity = host_identity
+        self._late_delivery_authority = late_delivery_authority
 
     @staticmethod
     def capabilities():
@@ -89,7 +91,7 @@ class Adapter:
                 and command in {"handoff_review", "authority_flip"})
             if principal["state"] == "pending" and not (handshake or pm_transition):
                 raise Rejected("Pending successor may only reconcile its own HANDOFF")
-            pm_only = {"override_priority", "authority_flip", "retire", "retirement", "release_stopped_worker", "handoff_review"}
+            pm_only = {"override_priority", "authority_flip", "retire", "retirement", "release_stopped_worker", "handoff_review", "late_sent"}
             if command in pm_only and (principal["role"] != "PM" or
                     (principal["task_id"] != current_pm and not pm_transition)):
                 raise Rejected("PM-only control command")
@@ -101,7 +103,8 @@ class Adapter:
                 raise Rejected("STOP and urgent override are PM-only")
             state = event["state"] if event else "ABSENT"
             grants = [g for g in principal["grants"] if g["command"] == command and g["scope"] == scope]
-            if not any(state in g["states"] for g in grants):
+            grant_state = "SENT_AMBIGUOUS" if command == "late_sent" and state == "SENT" else state
+            if not any(grant_state in g["states"] for g in grants):
                 raise Rejected("Principal x command x scope x state denied")
             if scope not in principal["bindings"]:
                 raise Rejected("No canonical scope binding")
@@ -203,8 +206,29 @@ class Adapter:
             if not target or target["state"] not in {"active", "pending"}:
                 raise Rejected("Recipient quiesced")
             result = ledger.claim(target=event["target"], dispatcher=owner)
-            if result is None or result["event"]["id"] != event_id:
+            if result is None:
+                refreshed = ledger._get(db, event_id)
+                if refreshed["state"] == "SENT_AMBIGUOUS":
+                    return ledger._public(refreshed)
                 raise Rejected("No claim for expected event; busy, duplicate or priority moved")
+            if result["event"]["id"] != event_id:
+                raise Rejected("No claim for expected event; busy, duplicate or priority moved")
+            return result
+        if cmd == "late_sent":
+            if self._late_delivery_authority is None:
+                raise Rejected("Host late-delivery receipt/confirmation authority unavailable")
+            receipt, confirmation = a["receipt"], a["confirmation"]
+            durable_key = "late-delivery:" + event_id
+            durable_value = {"receipt": receipt, "confirmation": confirmation, "consumed": True}
+            prior = db.execute("SELECT value FROM config WHERE key=?", ("adapter:" + durable_key,)).fetchone()
+            if prior and json.loads(prior["value"]) != durable_value:
+                raise Rejected("Late-delivery receipt/confirmation conflicts with durable evidence")
+            proof = self._late_delivery_authority.validate(
+                receipt, confirmation, event, a["delivery_token"], principal)
+            result = ledger.late_sent(event_id, a["delivery_token"],
+                                      receipt["platform_receipt_ref"],
+                                      receipt["receipt_digest"], proof)
+            put_config(db, durable_key, durable_value)
             return result
         if cmd == "reconcile":
             if event["state"] not in {"SENT", "ACKED", "STARTED"}:

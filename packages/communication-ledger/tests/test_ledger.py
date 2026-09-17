@@ -157,18 +157,19 @@ class LedgerTests(unittest.TestCase):
         self.ledger.inspect_retry(event_id, "lead", "synthetic://status-inspected")
         self.assertEqual(self.ledger.claim("worker-task", "dispatcher")["event"]["id"], event_id)
 
-    def test_expired_delivery_lease_fences_old_dispatcher(self):
+    def test_expired_delivery_lease_is_ambiguous_and_never_retries_blindly(self):
         event_id = self.enqueue()
         old = self.ledger.claim("worker-task", "old", lease_seconds=10)
         self.now += 11
         self.ledger.recover()
-        self.ledger.inspect_retry(event_id, "lead", "synthetic://inspected")
+        self.assertEqual(self.ledger.get(event_id)["state"], "SENT_AMBIGUOUS")
+        with self.assertRaises(LedgerError):
+            self.ledger.inspect_retry(event_id, "lead", "synthetic://inspected")
         self.now += 31
-        new = self.ledger.claim("worker-task", "new")
-        self.assertNotEqual(old["delivery_token"], new["delivery_token"])
+        self.assertIsNone(self.ledger.claim("worker-task", "new"))
         with self.assertRaises(LedgerError):
             self.ledger.sent(event_id, old["delivery_token"], "synthetic://late-receipt")
-        self.ledger.sent(event_id, new["delivery_token"], "synthetic://current-receipt")
+        self.assertEqual(self.ledger.get(event_id)["state"], "SENT_AMBIGUOUS")
 
     def test_restart_persists_state_receipts_and_worker_ownership(self):
         event_id = self.enqueue()
