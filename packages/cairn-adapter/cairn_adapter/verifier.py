@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import uuid
 from pathlib import Path
 
 from .store import Rejected, digest
@@ -70,6 +71,46 @@ class GitHubVerifier:
             raise
         except (KeyError, TypeError, ValueError, OSError) as exc:
             raise Rejected("Missing or ambiguous Git/GitHub evidence") from exc
+
+    def verify_preparation(self, binding):
+        """Verify a PR-absent source-preparation record without granting PR authority."""
+        fields = {"repository", "issue", "issue_state", "issue_body_sha256", "worktree",
+                  "head", "tree", "target_thread", "target_worktree", "scope"}
+        if not isinstance(binding, dict) or set(binding) != fields:
+            raise Rejected("Incomplete pre-PR preparation binding")
+        if binding["scope"] != "PREPARATION" or binding["issue_state"] != "open":
+            raise Rejected("Preparation scope is not allowed")
+        if type(binding["issue"]) is not int or binding["issue"] < 1:
+            raise Rejected("Invalid preparation issue")
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", binding["repository"]):
+            raise Rejected("Invalid preparation repository")
+        if any(not isinstance(binding[k], str) or not binding[k] for k in
+               ("worktree", "head", "tree", "target_thread", "target_worktree", "issue_body_sha256")):
+            raise Rejected("Invalid preparation binding identity")
+        if not re.fullmatch(r"[0-9a-f]{40}", binding["head"]) or not re.fullmatch(r"[0-9a-f]{40}", binding["tree"]):
+            raise Rejected("Invalid preparation git identity")
+        if not re.fullmatch(r"[0-9a-f]{64}", binding["issue_body_sha256"]):
+            raise Rejected("Invalid preparation issue digest")
+        try:
+            cwd = Path(binding["worktree"]).resolve(strict=True)
+            if (str(uuid.UUID(binding["target_thread"])) != binding["target_thread"]
+                    or not Path(binding["target_worktree"]).is_absolute()
+                    or Path(binding["target_worktree"]).resolve(strict=True) != cwd):
+                raise Rejected("Preparation target identity mismatch")
+            issue = json.loads(self._run([self.gh, "api", "--hostname", "github.com",
+                                          f"repos/{binding['repository']}/issues/{binding['issue']}"], cwd))
+            if issue["number"] != binding["issue"] or issue["state"] != "open" or hashlib.sha256((issue["body"] or "").encode()).hexdigest() != binding["issue_body_sha256"]:
+                raise Rejected("Preparation issue evidence drift")
+            head = self._run([self.git, "-C", str(cwd), "rev-parse", "HEAD"], cwd).decode().strip()
+            tree = self._run([self.git, "-C", str(cwd), "rev-parse", "HEAD^{tree}"], cwd).decode().strip()
+            if head != binding["head"] or tree != binding["tree"]:
+                raise Rejected("Preparation target source drift")
+        except Rejected:
+            raise
+        except (OSError, subprocess.SubprocessError, KeyError, ValueError, json.JSONDecodeError) as exc:
+            raise Rejected("Fresh pre-PR Git/GitHub verification unavailable") from exc
+        return {"status": "PREPARATION_ONLY", "authority_effect": False,
+                "platform_identity": "NOT_PROVEN", "actions_executed": []}
 
     def _verify(self, b, scope):
         fields = {"repository", "pr", "issue", "worktree", "branch", "base", "head", "tree",

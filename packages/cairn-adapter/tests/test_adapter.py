@@ -1,6 +1,7 @@
 """16 negative groups exercise real package transitions against temporary TEST DBs."""
 
 import copy
+import hashlib
 import json
 import os
 import sqlite3
@@ -15,6 +16,8 @@ from unittest.mock import patch
 from cairn_adapter import Adapter, Owner, Store, Rejected, credential_hash
 from cairn_adapter.recovery import backup, proof, restore
 from cairn_adapter.store import COMMANDS, STATES, digest, get_config
+from cairn_adapter.late_delivery import (LateDeliveryAuthority, LateDeliveryJournal,
+                                         observed_delivery_receipt, operator_confirmation)
 
 
 TOKENS = {k: (k + "-test-credential-").ljust(64, "x") for k in ("owner", "pm", "old", "new", "other")}
@@ -581,6 +584,91 @@ class NegativeMatrix(unittest.TestCase):
         with self.store.transaction() as (db, ledger):
             self.assertTrue(Adapter._retirement(db, ledger, ledger._get(db, pm_handoff),
                             {e["task_id"]: e for e in self.entries})["RETIRE_ALLOWED"])
+
+    def test_expired_delivery_is_quarantined_and_blocks_second_dedupe(self):
+        event = self.enqueue("late-delivery")
+        first = self.call("pm", "claim", event_id=event)
+        self.now += 61
+
+        result = self.call("pm", "claim", event_id=event)
+        self.assertEqual(result["state"], "SENT_AMBIGUOUS")
+        self.assertEqual(result["attempts"], 1)
+        with self.store.transaction() as (db, ledger):
+            self.assertEqual(ledger._get(db, event)["delivery_token"], first["delivery_token"])
+            before = ledger.history(event)
+        self.rejected_zero_write(lambda: self.enqueue("late-delivery-new-dedupe"))
+        with self.store.transaction() as (db, ledger):
+            self.assertEqual(ledger.history(event), before)
+            self.assertEqual(ledger._get(db, event)["state"], "SENT_AMBIGUOUS")
+
+    def test_late_receipt_requires_separate_confirmation_and_replay_is_idempotent(self):
+        event_id = self.call("pm", "enqueue", dedupe_key="late-reconcile", target="new",
+                             kind="HANDOFF", priority=1, dependency=None,
+                             next_action="Synthetic late-receipt test")['id']
+        first = self.call("pm", "claim", event_id=event_id)
+        self.now += 61
+        ambiguous = self.call("pm", "claim", event_id=event_id)
+        self.assertEqual(ambiguous["state"], "SENT_AMBIGUOUS")
+        with self.store.transaction() as (db, ledger):
+            event = ledger._get(db, event_id)
+            token = event["delivery_token"]
+        observer_key, operator_key = b"observer-test-key", b"operator-test-key"
+        observed_payload = "bounded synthetic event prompt"
+        expected_payload_digest = hashlib.sha256(observed_payload.encode("utf-8")).hexdigest()
+        journal_path = self.root / "late-delivery-journal.sqlite"
+        journal = LateDeliveryJournal(journal_path)
+        authority = LateDeliveryAuthority(observer_key, operator_key, "pm", 1,
+                                          {event_id: expected_payload_digest}, journal)
+        self.adapter._late_delivery_authority = authority
+        receipt = observed_delivery_receipt(event, token, "turn-7", "a" * 64,
+                                            observer_key, observed_payload=observed_payload,
+                                            observed_at=self.now)
+        confirmation = operator_confirmation(receipt, "pm", 1, operator_key,
+                                              confirmed_at=self.now)
+        with self.assertRaises(Rejected):
+            journal.persist_confirmation(receipt["receipt_digest"], confirmation)
+        authority.persist_receipt(receipt, event, token)
+        self.assertEqual(journal.load(receipt["receipt_digest"]), (receipt, None, False))
+        self.rejected_zero_write(lambda: self.call(
+            "pm", "late_sent", event_id=event_id, delivery_token=token,
+            receipt_digest=receipt["receipt_digest"]))
+        authority.persist_confirmation(receipt, confirmation, event, token,
+                                       {"task_id": "pm", "generation": 1})
+        mutated = copy.deepcopy(receipt)
+        mutated["target_turn_id"] = "turn-other"
+        with self.assertRaises(Rejected):
+            authority.persist_receipt(mutated, event, token)
+        self.assertEqual(journal.load(receipt["receipt_digest"]), (receipt, confirmation, False))
+        unbound_authority = LateDeliveryAuthority(observer_key, operator_key, "pm", 1,
+                                                  {event_id: "0" * 64}, journal)
+        self.adapter._late_delivery_authority = unbound_authority
+        self.rejected_zero_write(lambda: self.call(
+            "pm", "late_sent", event_id=event_id, delivery_token=token,
+            receipt_digest=receipt["receipt_digest"]))
+        self.adapter._late_delivery_authority = authority
+        imported = self.call("pm", "late_sent", event_id=event_id, delivery_token=token,
+                             receipt_digest=receipt["receipt_digest"])
+        self.assertEqual(imported["state"], "SENT")
+        # A restart uses the same durable ledger but a newly constructed host adapter.
+        reopened = Store(self.root / "project", "synthetic/repo", clock=lambda: self.now)
+        journal = LateDeliveryJournal(journal_path)
+        authority = LateDeliveryAuthority(observer_key, operator_key, "pm", 1,
+                                          {event_id: expected_payload_digest}, journal)
+        self.adapter = Adapter(reopened, self.verifier, host_identity=self.identity,
+                               late_delivery_authority=authority)
+        repeated = self.call("pm", "late_sent", event_id=event_id, delivery_token=token,
+                             receipt_digest=receipt["receipt_digest"])
+        self.assertEqual(repeated["state"], "SENT")
+        with reopened.transaction() as (db, ledger):
+            persisted = get_config(db, "late-delivery:" + event_id)
+            self.assertEqual(persisted, {"receipt": receipt, "confirmation": confirmation, "consumed": True})
+            self.assertEqual([h["action"] for h in ledger.history(event_id)].count("LATE_SENT_RECONCILED"), 1)
+            self.assertEqual([h["action"] for h in ledger.history(event_id)].count("LATE_DELIVERY_PROOF"), 1)
+        self.assertEqual(journal.load(receipt["receipt_digest"]), (receipt, confirmation, True))
+        mutated_confirmation = copy.deepcopy(confirmation)
+        mutated_confirmation["confirmed_at"] += 1
+        with self.assertRaises(Rejected):
+            journal.persist_confirmation(receipt["receipt_digest"], mutated_confirmation)
 
 
 if __name__ == "__main__":

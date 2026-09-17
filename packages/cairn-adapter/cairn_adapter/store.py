@@ -119,11 +119,11 @@ class Store:
         return cls(project_root, project, clock=clock)
 
 
-COMMANDS = {"checkpoint", "enqueue", "claim", "sent", "delivery_failed", "reconcile",
+COMMANDS = {"checkpoint", "enqueue", "claim", "sent", "late_sent", "delivery_failed", "reconcile",
             "ack", "start", "renew", "complete", "terminate", "inspect_retry",
             "override_priority", "set_busy", "get", "retirement", "handoff_review",
             "authority_flip", "retire", "release_stopped_worker", "snapshot_prep", "projection"}
-STATES = {"ABSENT", "QUEUED", "SENT", "ACKED", "STARTED", "COMPLETED", "BLOCKED",
+STATES = {"ABSENT", "QUEUED", "SENT", "SENT_AMBIGUOUS", "ACKED", "STARTED", "COMPLETED", "BLOCKED",
           "CANCELLED", "SUPERSEDED"}
 
 

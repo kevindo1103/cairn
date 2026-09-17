@@ -255,6 +255,11 @@ class Ledger:
                 raise LedgerError("Checkpoint revision moved; reread before updating")
             if row and all(row[k] == v for k, v in {"checkpoint": checkpoint, "base": base, "head": head}.items()):
                 return dict(row)
+            ambiguous = next((r for r in db.execute(
+                "SELECT id,payload FROM events WHERE state='SENT_AMBIGUOUS'")
+                if (lambda p: p["issue"] == issue and p["scope"] == scope)(json.loads(r["payload"]))), None)
+            if ambiguous:
+                raise LedgerError("Ambiguous delivery must be reconciled before checkpoint movement")
             db.execute("INSERT INTO checkpoints VALUES (?,?,?,?,?,?) ON CONFLICT(issue,scope) DO UPDATE SET "
                        "checkpoint=excluded.checkpoint,base=excluded.base,head=excluded.head,revision=excluded.revision",
                        (issue, scope, checkpoint, base, head, revision + 1))
@@ -289,6 +294,10 @@ class Ledger:
                 if existing["digest"] != digest:
                     raise LedgerError("Dedupe conflict: key already binds different content")
                 return self._public(dict(existing))
+            ambiguous = db.execute("SELECT id FROM events WHERE target=? AND state='SENT_AMBIGUOUS' LIMIT 1",
+                                   (p["target_task"],)).fetchone()
+            if ambiguous:
+                raise LedgerError("Ambiguous delivery blocks new assignments to this target")
             if p["kind"] == "STOP" or p["priority"] == 100:
                 self._pm(db, p["source_task"])
             if p["kind"] == "STOP" and (p["priority"] != 100 or p["dependency"]):
@@ -346,7 +355,10 @@ class Ledger:
             elif row["state"] == "SENT" and row["ack_deadline"] <= now:
                 self._retry(db, row, "MISSING_ACK")
             elif row["state"] == "QUEUED" and row["delivery_token"] and row["delivery_until"] <= now:
-                self._retry(db, row, "DELIVERY_LEASE_EXPIRED")
+                # The external call may have crossed its send boundary before expiry.
+                # Preserve the attempt token for exact late-receipt correlation; never retry blindly.
+                self._change(db, row["id"], "ledger", "DELIVERY_AMBIGUOUS",
+                             state="SENT_AMBIGUOUS", reason="DELIVERY_LEASE_EXPIRED")
 
     def recover(self):
         """Run timeout recovery once. Never loops or launches a worker."""
@@ -382,7 +394,8 @@ class Ledger:
                 # Reserve one delivery lane per recipient; STOP is a separate control lane.
                 is_stop = json.loads(row["payload"])["kind"] == "STOP"
                 pending = db.execute("SELECT payload FROM events WHERE target=? AND "
-                                     "(delivery_token IS NOT NULL OR state='SENT')", (target,)).fetchall()
+                                     "(delivery_token IS NOT NULL OR state IN ('SENT','SENT_AMBIGUOUS'))",
+                                     (target,)).fetchall()
                 if any((json.loads(r["payload"])["kind"] == "STOP") == is_stop for r in pending):
                     continue
                 token = str(uuid.uuid4())
@@ -408,6 +421,33 @@ class Ledger:
             row = self._delivery(db, event_id, delivery_token)
             self._change(db, event_id, row["delivery_owner"], "SENT", state="SENT", receipt=receipt,
                          delivery_token=None, delivery_until=None, ack_deadline=self.clock() + ack_timeout)
+            return self._public(self._get(db, event_id))
+
+    def late_sent(self, event_id, delivery_token, receipt_ref, receipt_digest,
+                  confirmation_digest, ack_timeout=120):
+        """Import a separately operator-confirmed late receipt; never retry or infer worker stages."""
+        evidence_ref(receipt_ref)
+        text_value(receipt_digest, "receipt_digest", 64)
+        text_value(confirmation_digest, "confirmation_digest", 64)
+        duration(ack_timeout)
+        with self._tx() as db:
+            row = self._get(db, event_id)
+            if row["state"] == "SENT":
+                proof = db.execute("SELECT detail FROM history WHERE event_id=? AND action='LATE_DELIVERY_PROOF' "
+                                   "ORDER BY seq DESC LIMIT 1", (event_id,)).fetchone()
+                expected = {"receipt_digest": receipt_digest, "confirmation_digest": confirmation_digest}
+                if row["receipt"] == receipt_ref and proof and json.loads(proof["detail"]) == expected:
+                    return self._public(row)
+                raise LedgerError("Conflicting late-delivery replay")
+            if (row["state"] != "SENT_AMBIGUOUS" or not delivery_token
+                    or row["delivery_token"] != delivery_token or row["delivery_until"] is None
+                    or row["delivery_until"] > self.clock()):
+                raise LedgerError("Late receipt requires its expired ambiguous delivery attempt")
+            self._change(db, event_id, row["delivery_owner"], "LATE_SENT_RECONCILED",
+                         state="SENT", receipt=receipt_ref, delivery_token=None,
+                         delivery_until=None, ack_deadline=self.clock() + ack_timeout, reason=None)
+            self._audit(db, event_id, row["delivery_owner"], "LATE_DELIVERY_PROOF",
+                        {"receipt_digest": receipt_digest, "confirmation_digest": confirmation_digest})
             return self._public(self._get(db, event_id))
 
     def delivery_failed(self, event_id, delivery_token, evidence):
