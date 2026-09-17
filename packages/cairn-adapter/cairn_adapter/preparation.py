@@ -118,7 +118,7 @@ def activate(reviewed, credentials, expected_digest, verifier=None):
         raise Rejected("Activation differs from narrow canonical proposal")
     verifier.verify(binding, SCOPE)
     root = Path(reviewed["store_root"])
-    if any(p.is_symlink() or p.is_junction() for p in (root, *root.parents)):
+    if any(p.is_symlink() or getattr(p, "is_junction", lambda: False)() for p in (root, *root.parents)):
         raise Rejected("Linked preparation Store root refused")
     if root.exists():
         raise Rejected("Preparation bootstrap refuses existing Store root")

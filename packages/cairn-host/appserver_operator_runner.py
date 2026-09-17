@@ -29,7 +29,7 @@ class CommandFileSource:
         self.path = Path(path)
 
     def read(self):
-        if self.path.is_symlink() or self.path.is_junction():
+        if self.path.is_symlink() or getattr(self.path, "is_junction", lambda: False)():
             raise RunnerStopped("Linked control file refused")
         raw = self.path.read_bytes()
         if len(raw) > 16384:

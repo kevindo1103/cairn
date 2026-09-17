@@ -53,7 +53,7 @@ def main():
     parser.add_argument("--profile",type=Path)
     parser.add_argument("--reviewed-digest")
     args=parser.parse_args(); root=args.proposal_root.absolute()
-    if any(p.is_symlink() or p.is_junction() for p in (root,*root.parents)):
+    if any(p.is_symlink() or getattr(p, "is_junction", lambda: False)() for p in (root,*root.parents)):
         raise Rejected("Linked proposal root refused")
     if args.command=="draft":
         if args.reviewed_digest or not args.profile: parser.error("draft requires profile and no approval digest")

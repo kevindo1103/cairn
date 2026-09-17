@@ -24,7 +24,7 @@ def read_json(path):
 
 
 def read_bytes(path):
-    if any(p.is_symlink() or p.is_junction() for p in (path, *path.parents)):
+    if any(p.is_symlink() or getattr(p, "is_junction", lambda: False)() for p in (path, *path.parents)):
         raise Rejected("Linked operator artifact")
     return path.read_bytes()
 
@@ -138,7 +138,7 @@ def main(argv=None):
     parser.add_argument("--test-evidence", action="append")
     args = parser.parse_args(argv)
     root = args.proposal_root.absolute()
-    if any(p.is_symlink() or p.is_junction() for p in (root, *root.parents)):
+    if any(p.is_symlink() or getattr(p, "is_junction", lambda: False)() for p in (root, *root.parents)):
         raise Rejected("Linked operator root")
     if args.command in {"draft", "successor-draft", "recovery-draft", "binding-update-draft"}:
         if (args.command != "recovery-draft" and not args.profile) or args.reviewed_digest:

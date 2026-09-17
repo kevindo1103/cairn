@@ -1,5 +1,7 @@
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -40,12 +42,27 @@ class DurableCommandJournalTests(unittest.TestCase):
             target = Path(temp) / "command.json"
             target.write_text("{}", encoding="utf-8")
             link = Path(temp) / "command-link.json"
+            junction = None
             try:
                 link.symlink_to(target)
+                candidate = link
             except OSError:
-                self.skipTest("symbolic links unavailable")
+                self.assertEqual(os.name, "nt", "No link-capable test path is available")
+                target_dir = Path(temp) / "command-target"
+                target_dir.mkdir()
+                nested = target_dir / "command.json"
+                nested.write_text("{}", encoding="utf-8")
+                junction = Path(temp) / "command-junction"
+                created = subprocess.run(
+                    ["cmd.exe", "/d", "/c", "mklink", "/J", str(junction), str(target_dir)],
+                    capture_output=True, text=True, timeout=10)
+                self.assertEqual(created.returncode, 0,
+                                 "Junction creation denied; no fallback or skip: " + created.stderr)
+                candidate = junction / "command.json"
             with self.assertRaises(CommandRejected):
-                read_command(link)
+                read_command(candidate)
+            if junction is not None:
+                junction.rmdir()
 
     def test_reserves_before_transport_and_stops_on_crash_or_replay(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -117,7 +117,7 @@ class LocalPilotTests(unittest.TestCase):
         self.assertEqual(created.returncode, 0,
                          'Junction creation denied; no fallback or skip: ' + created.stderr)
         try:
-            self.assertTrue(link.is_junction())
+            self.assertTrue(getattr(link, "is_junction", lambda: False)())
             before = {p.name: p.read_bytes() for p in target.iterdir()}
             with self.assertRaisesRegex(ValueError, 'Linked run path refused'):
                 pilot.Pilot(link / 'new-run')

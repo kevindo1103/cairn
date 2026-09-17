@@ -41,7 +41,7 @@ def check_artifacts(artifacts):
         if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
             raise Rejected("Malformed artifact binding")
         path = Path(item["path"])
-        if (not path.is_absolute() or any(p.is_symlink() or p.is_junction()
+        if (not path.is_absolute() or any(p.is_symlink() or getattr(p, "is_junction", lambda: False)()
                 for p in (path, *path.parents)) or not path.is_file()
                 or hashlib.sha256(path.read_bytes()).hexdigest() != item["sha256"]):
             raise Rejected("Pinned test artifact changed or unavailable")
@@ -276,7 +276,7 @@ def build_bounded_binding_update(store, prior, profile, credentials, verifier=No
         artifacts = []
         for relative in smoke_paths:
             artifact = repo_root / relative
-            if (not artifact.is_file() or any(p.is_symlink() or p.is_junction()
+            if (not artifact.is_file() or any(p.is_symlink() or getattr(p, "is_junction", lambda: False)()
                                                for p in (artifact, *artifact.parents))):
                 raise Rejected("Approved synthetic smoke artifact is unavailable or linked")
             artifacts.append(dict(path=str(artifact), sha256=hashlib.sha256(artifact.read_bytes()).hexdigest()))
@@ -512,7 +512,7 @@ class SourceVerifier:
                 if (any(p.lower() in {".git","secrets","runtime","node_modules",".venv"} or p.lower().startswith(".env") for p in Path(name).parts)
                         or path.suffix.lower() in {".db",".sqlite",".pem",".key"}):
                     raise Rejected("Secret/runtime artifact cannot be source scope")
-                if any(p.is_symlink() or p.is_junction() for p in (path,*path.parents)):
+                if any(p.is_symlink() or getattr(p, "is_junction", lambda: False)() for p in (path,*path.parents)):
                     raise Rejected("Linked candidate path refused")
                 if path.exists() and not path.is_file(): raise Rejected("Candidate path is not a regular file")
                 inventory.append(dict(path=name,sha256=hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None))
@@ -541,7 +541,7 @@ class SourceVerifier:
         content_hash=evidence[len(prefix):]
         if not re.fullmatch(r"[0-9a-f]{64}",content_hash): raise Rejected("Invalid report digest")
         path=root/(content_hash+".json")
-        if any(p.is_symlink() or p.is_junction() for p in (path,*path.parents)): raise Rejected("Linked source evidence refused")
+        if any(p.is_symlink() or getattr(p, "is_junction", lambda: False)() for p in (path,*path.parents)): raise Rejected("Linked source evidence refused")
         raw=path.read_bytes()
         if hashlib.sha256(raw).hexdigest()!=content_hash: raise Rejected("Source report changed")
         report=json.loads(raw)
@@ -558,7 +558,7 @@ class SourceVerifier:
             if not isinstance(ref,str) or not re.fullmatch(r"artifact://sha256/[0-9a-f]{64}",ref):
                 raise Rejected("Test evidence must resolve to a local immutable artifact")
             test_path=root/(ref[len(prefix):]+".json")
-            if test_path.is_symlink() or test_path.is_junction(): raise Rejected("Linked test evidence refused")
+            if test_path.is_symlink() or getattr(test_path, "is_junction", lambda: False)(): raise Rejected("Linked test evidence refused")
             test_raw=test_path.read_bytes(); test=json.loads(test_raw)
             if (hashlib.sha256(test_raw).hexdigest()!=ref[len(prefix):]
                     or set(test)!={"candidate_digest","command","exit_code","log_sha256"}
@@ -568,7 +568,7 @@ class SourceVerifier:
                     or not re.fullmatch(r"[0-9a-f]{64}",test["log_sha256"])):
                 raise Rejected("Test evidence is failed, stale or unreviewed")
             log=root/(test["log_sha256"]+".log")
-            if log.is_symlink() or log.is_junction() or hashlib.sha256(log.read_bytes()).hexdigest()!=test["log_sha256"]:
+            if log.is_symlink() or getattr(log, "is_junction", lambda: False)() or hashlib.sha256(log.read_bytes()).hexdigest()!=test["log_sha256"]:
                 raise Rejected("Test output artifact is missing or changed")
             verified_commands.add(canonical(test["command"]))
         if verified_commands!={canonical(command) for command in binding["source"]["test_commands"]}:
@@ -610,7 +610,7 @@ def activate_source(reviewed,credentials,expected_digest,verifier=None):
         raise Rejected("Source proposal differs from narrow canonical grants")
     (verifier or SourceVerifier()).verify(binding,SCOPE)
     root=Path(reviewed["store_root"])
-    if root.exists() or any(p.is_symlink() or p.is_junction() for p in (root,*root.parents)):
+    if root.exists() or any(p.is_symlink() or getattr(p, "is_junction", lambda: False)() for p in (root,*root.parents)):
         raise Rejected("Source bootstrap requires a new unlinked Store root")
     validate_entries(reviewed["entries"],[],reviewed["owner_credential_hash"])
     store=Store.initialize(root,reviewed["project"],reviewed["pm_task"],credentials["owner"])
@@ -647,7 +647,7 @@ class SourceHost:
         run=subprocess.run(command,cwd=binding["worktree"],capture_output=True,timeout=120,shell=False)
         if self.verifier.candidate(binding)!=before: raise Rejected("Candidate changed while tests ran")
         root=Path(binding["source"]["evidence_root"])
-        if any(p.is_symlink() or p.is_junction() for p in (root,*root.parents)): raise Rejected("Linked evidence root refused")
+        if any(p.is_symlink() or getattr(p, "is_junction", lambda: False)() for p in (root,*root.parents)): raise Rejected("Linked evidence root refused")
         root.mkdir(parents=True,exist_ok=True)
         log=run.stdout+b"\nSTDERR\n"+run.stderr; log_hash=hashlib.sha256(log).hexdigest()
         record=dict(candidate_digest=digest(before),command=command,exit_code=run.returncode,log_sha256=log_hash)

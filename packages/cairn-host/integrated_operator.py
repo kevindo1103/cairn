@@ -33,7 +33,7 @@ class CommandAuthority:
         if set(command) != self.required:
             raise AuthorityRejected("Unexpected command authority field")
         binding = self.root / "authority" / (command["command_id"] + ".json")
-        if not binding.is_file() or binding.is_symlink() or binding.is_junction():
+        if not binding.is_file() or binding.is_symlink() or getattr(binding, "is_junction", lambda: False)():
             raise AuthorityRejected("Host authority binding unavailable")
         record = json.loads(binding.read_text(encoding="utf-8"))
         signature = record.pop("signature", None)

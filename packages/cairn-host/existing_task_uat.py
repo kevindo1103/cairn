@@ -50,7 +50,7 @@ class Uat(Pilot):
     def __init__(self, root):
         self.root = Path(root).absolute()
         for part in (self.root, *self.root.parents):
-            if '..' in self.root.parts or part.is_symlink() or part.is_junction():
+            if '..' in self.root.parts or part.is_symlink() or getattr(part, "is_junction", lambda: False)():
                 raise ValueError('Linked/traversing UAT root refused')
         self.api = dependencies()
         data = read_json(self.root / 'broker' / 'owner.json')
@@ -171,7 +171,7 @@ def protected_evidence_bytes(root, path):
     evidence = root / 'evidence'
     path = Path(path).absolute()
     for current in (path, *path.parents, evidence, root, *root.parents):
-        if current.is_symlink() or current.is_junction():
+        if current.is_symlink() or getattr(current, "is_junction", lambda: False)():
             raise ValueError('Linked evidence path refused')
     if not path.is_relative_to(evidence):
         raise ValueError('Evidence must be under the protected evidence root')

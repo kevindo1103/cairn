@@ -18,7 +18,7 @@ def host_file(root, path):
         raise ValueError("Host configuration traversal refused")
     root, path = Path(root).absolute(), Path(path).absolute()
     for current in (path, *path.parents):
-        if current.is_symlink() or current.is_junction():
+        if current.is_symlink() or getattr(current, "is_junction", lambda: False)():
             raise ValueError("Linked host configuration refused")
     if not path.is_relative_to(root):
         raise ValueError("Host configuration escapes approved root")

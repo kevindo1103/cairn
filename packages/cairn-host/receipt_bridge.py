@@ -24,7 +24,7 @@ def write_import_artifacts(root, receipt, confirmation, command, command_digest,
     root = Path(root).absolute()
     evidence = root / "evidence"
     evidence.mkdir(parents=True, exist_ok=True)
-    if any(part == ".." for part in evidence.parts) or evidence.is_symlink() or evidence.is_junction():
+    if any(part == ".." for part in evidence.parts) or evidence.is_symlink() or getattr(evidence, "is_junction", lambda: False)():
         raise ReceiptRejected("Unsafe evidence root")
     receipt_path = evidence / (receipt["receipt_digest"] + ".observed.json")
     confirmation_path = evidence / (receipt["receipt_digest"] + ".confirmation.json")

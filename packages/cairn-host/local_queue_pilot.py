@@ -39,7 +39,7 @@ def exclusive_root(path):
     if '..' in path.parts:
         raise ValueError('Parent traversal refused')
     for part in (path, *path.parents):
-        if part.is_symlink() or part.is_junction():
+        if part.is_symlink() or getattr(part, "is_junction", lambda: False)():
             raise ValueError('Linked run path refused')
     # Never resume/rebind a previous run, including an incomplete crashed run.
     path.mkdir(parents=False, exist_ok=False)

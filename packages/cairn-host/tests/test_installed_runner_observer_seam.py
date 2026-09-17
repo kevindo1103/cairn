@@ -14,11 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from appserver_stream_observer import ObservationTimeout
 
 
-RUNNER = Path(r"C:\ProgramData\CairnBroker\issue15-test\appserver-doc-correction-20260915.py")
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+RUNNER = FIXTURES / "appserver-doc-correction-20260915.py"
 RUNNER_SHA256 = "2279d674bd74ec218831630b2d83a55536af7172e57951015c789a1ed60e8ee8"
-OBSERVER_PATH = Path(r"C:\ProgramData\CairnBroker\issue15-test\observer-21b4115ceb182c763d6f9f3ec7e3f2a2d10656a35e2f396330fa245a6da5f329.py")
+OBSERVER_PATH = FIXTURES / "observer-21b4115ceb182c763d6f9f3ec7e3f2a2d10656a35e2f396330fa245a6da5f329.py"
 OBSERVER_SHA256 = "21b4115ceb182c763d6f9f3ec7e3f2a2d10656a35e2f396330fa245a6da5f329"
-TASK3_RUNNER = Path(r"C:\ProgramData\CairnBroker\issue15-test\appserver-incident-audit-20260915.py")
+TASK3_RUNNER = FIXTURES / "appserver-incident-audit-20260915.py"
 TASK3_RUNNER_SHA256 = "4a8d9bfd562d42c7d3883a1f3b342e32b57e67281a9dba0618c0cd399e35d0db"
 
 
