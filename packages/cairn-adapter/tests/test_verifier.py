@@ -78,6 +78,20 @@ class VerifierTests(unittest.TestCase):
         self.assertEqual(verifier.api_calls.count(self.pr_path), 4)
         self.assertEqual(first["head"], self.binding["head"])
 
+    def test_preparation_binding_has_no_pr_or_platform_authority(self):
+        plan = "preparation issue"
+        binding = dict(repository="synthetic/repo", issue=2, issue_state="open",
+                       issue_body_sha256=hashlib.sha256(plan.encode()).hexdigest(),
+                       worktree=str(self.root), head=self.binding["head"], tree=self.binding["tree"],
+                       target_thread="01a0a959-b752-70f0-9118-900571ba60ab", target_worktree=str(self.root), scope="PREPARATION")
+        responses = dict(self.responses)
+        responses["repos/synthetic/repo/issues/2"] = {"number": 2, "state": "open", "body": plan}
+        result = FixtureGitHub(responses).verify_preparation(binding)
+        self.assertEqual(result["status"], "PREPARATION_ONLY")
+        self.assertFalse(result["authority_effect"])
+        with self.assertRaises(Rejected):
+            FixtureGitHub(responses).verify_preparation(dict(binding, scope="adapter"))
+
     def test_remote_identity_base_head_tree_plan_changes_fail_closed(self):
         changes = [(self.pr_path, ("head", "sha"), "a" * 40),
                    (self.pr_path, ("base", "sha"), "a" * 40),

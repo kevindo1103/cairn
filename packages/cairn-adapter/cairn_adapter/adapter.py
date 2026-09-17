@@ -10,7 +10,7 @@ ARGUMENTS = {
     "checkpoint": set(),
     "enqueue": {"dedupe_key", "target", "kind", "priority", "dependency", "next_action"},
     "claim": {"event_id"}, "sent": {"event_id", "delivery_token", "receipt"},
-    "late_sent": {"event_id", "delivery_token", "receipt", "confirmation"},
+    "late_sent": {"event_id", "delivery_token", "receipt_digest"},
     "delivery_failed": {"event_id", "delivery_token", "evidence"},
     "reconcile": {"event_id"}, "ack": {"event_id"},
     "start": {"event_id", "worker_token", "evidence"},
@@ -95,7 +95,7 @@ class Adapter:
             if command in pm_only and (principal["role"] != "PM" or
                     (principal["task_id"] != current_pm and not pm_transition)):
                 raise Rejected("PM-only control command")
-            workers = {"get", "reconcile", "ack", "start", "renew", "complete", "terminate", "set_busy", "projection"}
+            workers = {"get", "reconcile", "ack", "start", "renew", "complete", "terminate", "set_busy", "projection", "snapshot_prep"}
             if principal["role"] not in {"PM", "Lead"} and (command not in workers or (
                     event is not None and event["target"] != principal["task_id"])):
                 raise Rejected("Worker may only operate its own target and current generation")
@@ -103,7 +103,9 @@ class Adapter:
                 raise Rejected("STOP and urgent override are PM-only")
             state = event["state"] if event else "ABSENT"
             grants = [g for g in principal["grants"] if g["command"] == command and g["scope"] == scope]
-            grant_state = "SENT_AMBIGUOUS" if command == "late_sent" and state == "SENT" else state
+            if command == "late_sent":
+                grants += [g for g in principal["grants"] if g["command"] == "sent" and g["scope"] == scope]
+            grant_state = "QUEUED" if command == "late_sent" else state
             if not any(grant_state in g["states"] for g in grants):
                 raise Rejected("Principal x command x scope x state denied")
             if scope not in principal["bindings"]:
@@ -155,7 +157,10 @@ class Adapter:
                     if prior is not None and row["id"] != args.get("event_id") and not any(
                             prior["state"] in g["states"] for g in grants):
                         raise Rejected("Package maintenance crossed permitted states; host recovery required")
-            return result
+        if command == "late_sent":
+            # Mark the separate evidence journal only after the ledger transaction commits.
+            self._late_delivery_authority.mark_imported_digest(args["receipt_digest"])
+        return result
 
     def _invoke(self, db, ledger, cmd, a, principal, registry, fresh, cp, event, entries, owner):
         task, scope = principal["task_id"], fresh["scope"]
@@ -217,7 +222,10 @@ class Adapter:
         if cmd == "late_sent":
             if self._late_delivery_authority is None:
                 raise Rejected("Host late-delivery receipt/confirmation authority unavailable")
-            receipt, confirmation = a["receipt"], a["confirmation"]
+            if json.loads(event["payload"])["source_task"] != task or event["delivery_owner"] != owner:
+                raise Rejected("Late receipt must be confirmed by the original source PM generation")
+            receipt, confirmation = self._late_delivery_authority.staged_pair(
+                event_id, a["receipt_digest"])
             durable_key = "late-delivery:" + event_id
             durable_value = {"receipt": receipt, "confirmation": confirmation, "consumed": True}
             prior = db.execute("SELECT value FROM config WHERE key=?", ("adapter:" + durable_key,)).fetchone()
@@ -248,6 +256,11 @@ class Adapter:
             if cmd == "ack":
                 return ledger.ack(event_id, task, owner, "artifact://reconciled/" + digest(expected))
             if cmd == "complete":
+                # Optional trusted-host source report validation; legacy PR and
+                # release verifiers retain their existing path unchanged.
+                if hasattr(self._verifier, "validate_source_completion"):
+                    self._verifier.validate_source_completion(
+                        principal["bindings"][scope], event, a["evidence"])
                 validate_completion(db, self._verifier, event, registry, fresh, cp, ledger, a["evidence"])
         if cmd in {"sent", "delivery_failed", "start", "renew", "complete"}:
             return getattr(ledger, cmd)(**a)

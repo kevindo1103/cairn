@@ -1,6 +1,7 @@
 """Offline TEST-store facade. PM imports manual platform observations; no transport."""
 import argparse
 from contextlib import contextmanager
+import hashlib
 import json
 from pathlib import Path
 import secrets
@@ -16,7 +17,7 @@ EXPECTED = dict(sent='QUEUED', ack='SENT', start='ACKED', complete='STARTED')
 MAX_BYTES = 16384
 
 
-def read_json(path):
+def parse_json(raw):
     def unique(pairs):
         result = {}
         for key, value in pairs:
@@ -24,11 +25,14 @@ def read_json(path):
                 raise ValueError('Duplicate JSON field')
             result[key] = value
         return result
-    with Path(path).open('rb') as stream:
-        raw = stream.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise ValueError('Import size limit exceeded')
     return json.loads(raw, object_pairs_hook=unique, parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Non-finite JSON')))
+
+
+def read_json(path):
+    with Path(path).open('rb') as stream:
+        return parse_json(stream.read(MAX_BYTES + 1))
 
 
 class UatVerifier(FixtureVerifier):
@@ -74,9 +78,12 @@ class Uat(Pilot):
         return None
 
 
-def prepare(root, head, *, recipient=RECIPIENT, dedupe=DEDUPE):
+def prepare(root, head, *, recipient=RECIPIENT, dedupe=DEDUPE, completion_result=42):
     if len(head) != 40 or any(c not in '0123456789abcdef' for c in head):
         raise ValueError('Require exact source head')
+    if not isinstance(completion_result, int) or isinstance(completion_result, bool):
+        raise ValueError('Require integer completion result')
+    completion = dict(result=completion_result)
     api = dependencies()
     if api['verify_package']()['source_commit'] != CORE:
         raise ValueError('Core pin drift')
@@ -102,16 +109,27 @@ def prepare(root, head, *, recipient=RECIPIENT, dedupe=DEDUPE):
     envelope.update(event_id=event['id'], dedupe=dedupe, nonce=secrets.token_hex(16))
     with store.transaction() as (db, ledger):
         put_config(db, 'uat', dict(envelope=envelope, recipient=recipient, registry_revision=revision,
-                                  imports={}, sent_at=None, identity='MANUAL_ATTESTATION'))
+                                  imports={}, sent_at=None, identity='MANUAL_ATTESTATION',
+                                  completion_contract=completion))
     owner = dict(tokens=tokens, head=head, recipient=recipient, core_pin=CORE)
     (root / 'broker' / 'owner.json').write_text(json.dumps(owner) + '\n', encoding='utf-8')
     public = dict(recipient=recipient, envelope=envelope, state='QUEUED', transport='NOT_SENT',
                   principal_enforcement='NOT_PROVEN', isolation='NOT_PROVEN', activation_authorized=False)
+    public['completion_contract'] = completion
     (root / 'evidence' / 'envelope.json').write_text(json.dumps(public, indent=2) + '\n', encoding='utf-8')
     return public
 
 
-def import_observation(root, stage, observation, *, clock=time.time):
+def completion_contract(root):
+    public = read_json(Path(root) / 'evidence' / 'envelope.json')
+    contract = public.get('completion_contract', dict(result=42))
+    if not isinstance(contract, dict) or set(contract) != {'result'} or not isinstance(contract['result'], int):
+        raise ValueError('Invalid completion contract')
+    return contract
+
+
+def validate_observation(root, stage, observation):
+    """Validate a prospective/manual observation without opening the Store."""
     if stage not in ACTION:
         raise ValueError('Unknown import stage')
     if (not isinstance(observation, dict) or set(observation) != {'observer', 'origin', 'readback'}
@@ -127,20 +145,118 @@ def import_observation(root, stage, observation, *, clock=time.time):
     # Use the pinned core contract before opening the UAT Store. In particular,
     # codex:// is a platform locator, not a supported ledger evidence reference.
     evidence_ref(origin['evidence_ref'])
-    owner = read_json(Path(root) / 'broker' / 'owner.json')
-    if origin['thread_id'] != owner.get('recipient'):
+    public = read_json(Path(root) / 'evidence' / 'envelope.json')
+    base_keys = {'recipient', 'envelope', 'state', 'transport', 'principal_enforcement', 'isolation',
+                 'activation_authorized'}
+    if (not isinstance(public, dict) or frozenset(public) not in {frozenset(base_keys),
+                                                             frozenset(base_keys | {'completion_contract'})}
+            or not isinstance(public['envelope'], dict)):
+        raise ValueError('Unknown prospective UAT binding')
+    if origin['thread_id'] != public['recipient']:
         raise ValueError('Wrong canonical recipient')
-    uat = Uat(root)
-    expected = dict(uat.envelope, action=ACTION[stage])
+    expected = dict(public['envelope'], action=ACTION[stage])
     if stage == 'complete':
-        expected['result'] = 42
+        expected.update(completion_contract(root))
     # Canonical comparison rejects true/42.0 substitution, extra identity fields,
     # stale checkpoint/nonce/dedupe and child text masquerading as platform origin.
     from cairn_adapter.store import canonical, get_config, put_config
     if canonical(readback) != canonical(expected):
         raise ValueError('Readback differs from frozen event/checkpoint/nonce')
+    return dict(origin=origin, readback=readback, envelope=public['envelope'])
+
+
+def protected_evidence_bytes(root, path):
+    """Read one evidence file only after rejecting its original lexical link chain."""
+    root = Path(root).absolute()
+    evidence = root / 'evidence'
+    path = Path(path).absolute()
+    for current in (path, *path.parents, evidence, root, *root.parents):
+        if current.is_symlink() or current.is_junction():
+            raise ValueError('Linked evidence path refused')
+    if not path.is_relative_to(evidence):
+        raise ValueError('Evidence must be under the protected evidence root')
+    resolved_evidence = evidence.resolve(strict=True)
+    resolved_path = path.resolve(strict=True)
+    if not resolved_path.is_relative_to(resolved_evidence):
+        raise ValueError('Resolved evidence escapes the protected root')
+    return path.read_bytes()
+
+
+def operator_attest(root, stage, receipt_path, confirmation):
+    """Build one manual observation from an already-recorded protected receipt."""
+    root = Path(root).absolute()
+    receipt_path = Path(receipt_path).absolute()
+    raw = protected_evidence_bytes(root, receipt_path)
+    receipt = parse_json(raw)
+    public = read_json(root / 'evidence' / 'envelope.json')
+    envelope = public['envelope']
+    expected = dict(envelope, action=ACTION.get(stage))
+    if stage == 'complete':
+        expected.update(completion_contract(root))
+    required = {'event_id', 'dedupe', 'checkpoint', 'thread_id', 'turn_id', 'action', 'readback',
+                'transport_ref', 'stream_ref'}
+    if stage == 'complete':
+        required |= {'output_path', 'output_sha256', 'output_ref'}
+    if (stage not in ACTION or not isinstance(receipt, dict) or set(receipt) != required
+            or any(receipt[key] != envelope[key] for key in ('event_id', 'dedupe', 'checkpoint'))
+            or receipt['thread_id'] != public['recipient'] or receipt['action'] != ACTION[stage]):
+        raise ValueError('Receipt does not bind the exact event/stage')
+    from comms_ledger.ledger import evidence_ref
+    evidence_ref(receipt['transport_ref'])
+    evidence_ref(receipt['stream_ref'])
+    if stage == 'sent':
+        if not isinstance(receipt['turn_id'], str) or not receipt['turn_id'].strip():
+            raise ValueError('Receipt is not an observed delivery')
+        origin_turn = None
+    elif not isinstance(receipt['turn_id'], str) or not receipt['turn_id'].strip():
+        raise ValueError('Receipt is missing observed turn')
+    else:
+        origin_turn = receipt['turn_id']
+    from cairn_adapter.store import canonical
+    if canonical(receipt['readback']) != canonical(expected):
+        raise ValueError('Receipt readback differs from exact stage binding')
+    if stage == 'complete':
+        output = protected_evidence_bytes(root, receipt['output_path'])
+        output_hash = hashlib.sha256(output).hexdigest()
+        if (not output.strip() or receipt['output_sha256'] != output_hash
+                or receipt['output_ref'] != 'artifact://sha256/' + output_hash):
+            raise ValueError('Completion output artifact is missing or changed')
+    receipt_hash = hashlib.sha256(raw).hexdigest()
+    if (not isinstance(confirmation, dict)
+            or confirmation != dict(owner='pm', confirmed=True, stage=stage,
+                                    event_id=envelope['event_id'], dedupe=envelope['dedupe'],
+                                    checkpoint=envelope['checkpoint'], receipt_sha256=receipt_hash)):
+        raise ValueError('Explicit owner confirmation does not bind observed receipt')
+    observation = dict(observer='PM_MANUAL_PLATFORM_READBACK',
+                       origin=dict(thread_id=public['recipient'], turn_id=origin_turn,
+                                   evidence_ref='artifact://sha256/' + receipt_hash),
+                       readback=receipt['readback'])
+    validate_observation(root, stage, observation)
+    return observation
+
+
+def operator_resume(root, attestations, *, clock=time.time):
+    """Import already-observed, owner-confirmed stages only; never dispatch."""
+    results = []
+    for entry in attestations:
+        if not isinstance(entry, dict) or set(entry) != {'stage', 'receipt_path', 'confirmation'}:
+            raise ValueError('Require stage-specific operator attestation')
+        observation = operator_attest(root, entry['stage'], entry['receipt_path'], entry['confirmation'])
+        results.append(import_observation(root, entry['stage'], observation, clock=clock))
+    return results
+
+
+def import_observation(root, stage, observation, *, clock=time.time):
+    validated = validate_observation(root, stage, observation)
+    origin, readback = validated['origin'], validated['readback']
+    uat = Uat(root)
+    from cairn_adapter.store import canonical, get_config, put_config
+    if canonical(uat.envelope) != canonical(validated['envelope']):
+        raise ValueError('Prospective binding differs from Store binding')
     with uat.store.transaction() as (db, ledger):
         config = get_config(db, 'uat')
+        if canonical(config.get('completion_contract', dict(result=42))) != canonical(completion_contract(root)):
+            raise ValueError('Completion contract differs from Store binding')
         row = ledger._get(db, uat.event)
         if row['state'] != EXPECTED[stage] or stage in config['imports']:
             raise ValueError('Out of order or duplicate import')
@@ -176,6 +292,25 @@ def import_observation(root, stage, observation, *, clock=time.time):
         return dict(event_id=uat.event, state=ledger._get(db, uat.event)['state'], stage=stage,
                     origin=origin, identity='MANUAL_ATTESTATION', principal_enforcement='NOT_PROVEN',
                     isolation='NOT_PROVEN', automatic_wake='NOT_IMPLEMENTED', activation_authorized=False)
+
+
+def backup_restore_uat(root):
+    """Consistently backup and reopen this UAT Store without dispatching."""
+    uat = Uat(root)
+    backup_path = Path(root) / 'evidence' / 'uat-store-backup.sqlite'
+    restored_root = Path(root) / 'restored-store'
+    if restored_root.exists():
+        raise ValueError('Existing restore destination refused')
+    saved = uat.api['backup'](uat.store.path, backup_path)
+    restored = uat.api['restore'](backup_path, restored_root, saved, PROJECT)
+    reopened = uat.api['Store'](restored_root, PROJECT)
+    if saved != restored or uat.api['proof'](reopened.path) != saved:
+        raise ValueError('UAT backup/restore proof mismatch')
+    from cairn_adapter.store import get_config
+    with reopened.transaction() as (db, ledger):
+        config = get_config(db, 'uat')
+        state = ledger._get(db, config['envelope']['event_id'])['state']
+    return dict(proof=saved, state=state, envelope=config['envelope'], imports=config['imports'])
 
 
 def main():

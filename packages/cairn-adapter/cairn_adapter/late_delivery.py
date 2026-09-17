@@ -1,7 +1,10 @@
 """Fail-closed receipts for accepted transport whose dispatcher lease expired."""
 import hashlib
 import hmac
+import json
 import math
+import sqlite3
+from contextlib import closing
 
 from .store import Rejected, canonical, digest
 
@@ -67,9 +70,8 @@ def operator_confirmation(receipt, operator_task, operator_generation, operator_
     return body
 
 
-def validate_late_delivery(receipt, confirmation, event, delivery_token, operator_task,
-                           operator_generation, operator_key, observer_key,
-                           expected_payload_digest):
+def validate_observed_receipt(receipt, event, delivery_token, observer_key,
+                              expected_payload_digest):
     if not isinstance(receipt, dict) or set(receipt) != RECEIPT_FIELDS:
         raise Rejected("Malformed late-delivery receipt")
     unsigned_receipt = {k: v for k, v in receipt.items() if k not in {"receipt_digest", "observer_signature"}}
@@ -95,6 +97,14 @@ def validate_late_delivery(receipt, confirmation, event, delivery_token, operato
             or not isinstance(receipt["observed_at"], (int, float))
             or not math.isfinite(receipt["observed_at"])):
         raise Rejected("Late-delivery receipt binding mismatch")
+    return receipt
+
+
+def validate_late_delivery(receipt, confirmation, event, delivery_token, operator_task,
+                           operator_generation, operator_key, observer_key,
+                           expected_payload_digest):
+    validate_observed_receipt(receipt, event, delivery_token, observer_key,
+                              expected_payload_digest)
     if not isinstance(confirmation, dict) or set(confirmation) != CONFIRMATION_FIELDS:
         raise Rejected("Independent operator confirmation required")
     signature = confirmation["signature"]
@@ -117,10 +127,71 @@ def validate_late_delivery(receipt, confirmation, event, delivery_token, operato
     return digest(unsigned_confirmation)
 
 
+class LateDeliveryJournal:
+    """Durable host-side receipt and operator-confirmation staging journal."""
+    def __init__(self, path):
+        self.path = str(path)
+        with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
+            db.execute("PRAGMA synchronous=FULL")
+            db.execute("CREATE TABLE IF NOT EXISTS late_delivery_receipts ("
+                       "receipt_digest TEXT PRIMARY KEY, event_id TEXT NOT NULL, "
+                       "receipt TEXT NOT NULL, confirmation TEXT, imported INTEGER NOT NULL DEFAULT 0)")
+
+    def persist_receipt(self, receipt):
+        key, encoded = receipt["receipt_digest"], canonical(receipt)
+        with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
+            db.execute("PRAGMA synchronous=FULL")
+            row = db.execute("SELECT event_id,receipt FROM late_delivery_receipts WHERE receipt_digest=?",
+                             (key,)).fetchone()
+            if row and (row[0] != receipt["event_id"] or row[1] != encoded):
+                raise Rejected("Persisted late-delivery receipt mutation")
+            if not row:
+                db.execute("INSERT INTO late_delivery_receipts(receipt_digest,event_id,receipt) VALUES(?,?,?)",
+                           (key, receipt["event_id"], encoded))
+
+    def persist_confirmation(self, receipt_digest, confirmation):
+        encoded = canonical(confirmation)
+        with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
+            db.execute("PRAGMA synchronous=FULL")
+            row = db.execute("SELECT confirmation FROM late_delivery_receipts WHERE receipt_digest=?",
+                             (receipt_digest,)).fetchone()
+            if not row:
+                raise Rejected("Cannot confirm an unpersisted observed receipt")
+            if row[0] is not None and row[0] != encoded:
+                raise Rejected("Conflicting operator confirmation for receipt")
+            db.execute("UPDATE late_delivery_receipts SET confirmation=? WHERE receipt_digest=?",
+                       (encoded, receipt_digest))
+
+    def load(self, receipt_digest):
+        with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
+            row = db.execute("SELECT receipt,confirmation,imported FROM late_delivery_receipts WHERE receipt_digest=?",
+                             (receipt_digest,)).fetchone()
+        if not row:
+            raise Rejected("Observed receipt is not durably staged")
+        return json.loads(row[0]), json.loads(row[1]) if row[1] is not None else None, bool(row[2])
+
+    def mark_imported(self, receipt, confirmation):
+        key, receipt_json, confirmation_json = receipt["receipt_digest"], canonical(receipt), canonical(confirmation)
+        with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
+            db.execute("PRAGMA synchronous=FULL")
+            row = db.execute("SELECT receipt,confirmation,imported FROM late_delivery_receipts WHERE receipt_digest=?",
+                             (key,)).fetchone()
+            if not row or row[0] != receipt_json or row[1] != confirmation_json:
+                raise Rejected("Durable receipt/confirmation pair changed before import marking")
+            if not row[2]:
+                db.execute("UPDATE late_delivery_receipts SET imported=1 WHERE receipt_digest=?", (key,))
+
+    def mark_imported_digest(self, receipt_digest):
+        receipt, confirmation, _ = self.load(receipt_digest)
+        if confirmation is None:
+            raise Rejected("Cannot mark an unconfirmed receipt imported")
+        self.mark_imported(receipt, confirmation)
+
+
 class LateDeliveryAuthority:
     """Host-only verifier; keys and operator identity never arrive in command input."""
     def __init__(self, observer_key, operator_key, operator_task, operator_generation,
-                 expected_payload_digests):
+                 expected_payload_digests, journal):
         if not operator_task or type(operator_generation) is not int or operator_generation < 1:
             raise Rejected("Invalid pilot operator principal")
         self._observer_key = bytes(observer_key)
@@ -132,6 +203,16 @@ class LateDeliveryAuthority:
                 for event_id, value in expected_payload_digests.items()):
             raise Rejected("Host command journal payload bindings are malformed")
         self._expected_payload_digests = dict(expected_payload_digests)
+        if not isinstance(journal, LateDeliveryJournal):
+            raise Rejected("Host-owned durable late-delivery journal required")
+        self._journal = journal
+
+    def persist_receipt(self, receipt, event, delivery_token):
+        expected = self._expected_payload_digests.get(event["id"])
+        if expected is None:
+            raise Rejected("No durable host dispatch payload binding for this event")
+        validate_observed_receipt(receipt, event, delivery_token, self._observer_key, expected)
+        self._journal.persist_receipt(receipt)
 
     def validate(self, receipt, confirmation, event, delivery_token, principal):
         if principal.get("task_id") != self._operator_task or principal.get("generation") != self._operator_generation:
@@ -143,3 +224,20 @@ class LateDeliveryAuthority:
                                       self._operator_task, self._operator_generation,
                                       self._operator_key, self._observer_key,
                                       expected_payload_digest)
+
+    def persist_confirmation(self, receipt, confirmation, event, delivery_token, principal):
+        proof = self.validate(receipt, confirmation, event, delivery_token, principal)
+        self._journal.persist_confirmation(receipt["receipt_digest"], confirmation)
+        return proof
+
+    def staged_pair(self, event_id, receipt_digest):
+        receipt, confirmation, _ = self._journal.load(receipt_digest)
+        if receipt["event_id"] != event_id or confirmation is None:
+            raise Rejected("Exact event receipt and separate operator confirmation required")
+        return receipt, confirmation
+
+    def mark_imported(self, receipt, confirmation):
+        self._journal.mark_imported(receipt, confirmation)
+
+    def mark_imported_digest(self, receipt_digest):
+        self._journal.mark_imported_digest(receipt_digest)
