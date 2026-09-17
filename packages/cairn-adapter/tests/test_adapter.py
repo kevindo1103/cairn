@@ -1,6 +1,7 @@
 """16 negative groups exercise real package transitions against temporary TEST DBs."""
 
 import copy
+import hashlib
 import json
 import os
 import sqlite3
@@ -610,10 +611,14 @@ class NegativeMatrix(unittest.TestCase):
             event = ledger._get(db, event_id)
             token = event["delivery_token"]
         observer_key, operator_key = b"observer-test-key", b"operator-test-key"
-        authority = LateDeliveryAuthority(observer_key, operator_key, "pm", 1)
+        observed_payload = "bounded synthetic event prompt"
+        expected_payload_digest = hashlib.sha256(observed_payload.encode("utf-8")).hexdigest()
+        authority = LateDeliveryAuthority(observer_key, operator_key, "pm", 1,
+                                          {event_id: expected_payload_digest})
         self.adapter._late_delivery_authority = authority
         receipt = observed_delivery_receipt(event, token, "turn-7", "a" * 64,
-                                            observer_key, observed_at=self.now)
+                                            observer_key, observed_payload=observed_payload,
+                                            observed_at=self.now)
         confirmation = operator_confirmation(receipt, "pm", 1, operator_key,
                                               confirmed_at=self.now)
         self.rejected_zero_write(lambda: self.call(
@@ -624,6 +629,13 @@ class NegativeMatrix(unittest.TestCase):
         self.rejected_zero_write(lambda: self.call(
             "pm", "late_sent", event_id=event_id, delivery_token=token,
             receipt=mutated, confirmation=confirmation))
+        unbound_authority = LateDeliveryAuthority(observer_key, operator_key, "pm", 1,
+                                                  {event_id: "0" * 64})
+        self.adapter._late_delivery_authority = unbound_authority
+        self.rejected_zero_write(lambda: self.call(
+            "pm", "late_sent", event_id=event_id, delivery_token=token,
+            receipt=receipt, confirmation=confirmation))
+        self.adapter._late_delivery_authority = authority
         imported = self.call("pm", "late_sent", event_id=event_id, delivery_token=token,
                              receipt=receipt, confirmation=confirmation)
         self.assertEqual(imported["state"], "SENT")
