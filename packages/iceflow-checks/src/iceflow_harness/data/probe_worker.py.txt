@@ -1,0 +1,90 @@
+"""Runs only inside a disposable, credentialless Docker container."""
+import contextlib
+import json
+import os
+import shutil
+import signal
+import sqlite3
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+from probe_protocol import SCHEMA, blocked, failure
+
+
+def configure_environment(root):
+    # ENV selects the dotenv file; ENVIRONMENT is the distinct Settings field.
+    # All tenant selectors must agree before env.py may invoke migrations.
+    os.environ.update(ENV='test', ENVIRONMENT='test',
+                      DEFAULT_TENANT_ID='harness-fixture',
+                      BINGXUE_ALEMBIC_CALLER_CLASS='SYNTHETIC_TEST_V1',
+                      TENANTS_DIR=str(root), PYTHONDONTWRITEBYTECODE='1')
+    sys.dont_write_bytecode = True
+
+
+def forbid_model_ddl(*_a, **_kw):
+    raise RuntimeError('MODEL_CREATE_ALL_FORBIDDEN_IN_PARITY_FIXTURE')
+
+
+def work(state):
+    state['phase'] = 'SANDBOX_CHECK'
+    if not Path('/.dockerenv').exists() or Path.cwd() != Path('/work'):
+        return blocked('SANDBOX_REQUIRED', state['phase'])
+    signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError()))
+    signal.alarm(180)
+    state['alarm_armed'] = True
+    state['phase'] = 'COPY_SOURCE'
+    shutil.copytree('/src/backend', '/work/backend')
+    state['phase'] = 'SETUP_ENVIRONMENT'
+    root = Path('/work/tenants')
+    root.mkdir()
+    configure_environment(root)
+    os.chdir('/work/backend')
+    sys.path.insert(0, '/work/backend')
+    state['phase'] = 'IMPORT_DEPENDENCIES'
+    from sqlalchemy import MetaData
+    from alembic import command
+    from alembic.config import Config
+    MetaData.create_all = forbid_model_ddl
+    state['phase'] = 'CONFIGURE_ALEMBIC'
+    cfg = Config('/work/backend/alembic.ini')
+    cfg.cmd_opts = SimpleNamespace(cmd=(command.upgrade, [], {}), revision='head',
+                                   x=['tenant_id=harness-fixture'], sql=False, tag=None)
+    # ALEMBIC_UPGRADE means command.upgrade was invoked, not that revision DDL ran.
+    # The tenant/settings admission inside env.py can still refuse this call.
+    state['phase'] = 'ALEMBIC_UPGRADE'
+    command.upgrade(cfg, 'head')
+    state['phase'] = 'INSPECT_DATABASE'
+    db = root / 'harness-fixture.db'
+    if not db.is_file():
+        raise RuntimeError('PROBE_DB_MISSING')
+    with contextlib.closing(sqlite3.connect(db.as_uri() + '?mode=ro', uri=True)) as con:
+        con.execute('PRAGMA query_only=ON')
+        revisions = sorted(r[0] for r in con.execute('SELECT version_num FROM alembic_version'))
+        tables = {}
+        for (table,) in con.execute("SELECT name FROM sqlite_master WHERE type='table'"):
+            if not all(c.isalnum() or c == '_' for c in table):
+                continue
+            tables[table] = sorted(r[1] for r in con.execute('PRAGMA table_info("' + table + '")'))
+    state['phase'] = 'COMPLETE'
+    return {'schema': SCHEMA, 'status': 'MIGRATED', 'revisions': revisions, 'tables': tables}
+
+
+def capture():
+    state = {'phase': 'SANDBOX_CHECK', 'alarm_armed': False}
+    # Never emit migration stdout/stderr, SQL, exception arguments or env values.
+    with open(os.devnull, 'w') as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
+        try:
+            return work(state)
+        except BaseException as exc:
+            # Sandbox failures before setup must not be misreported as migration failures.
+            if state['phase'] == 'SANDBOX_CHECK':
+                return blocked('SANDBOX_REQUIRED', 'SANDBOX_CHECK')
+            return failure(exc, state['phase'])
+        finally:
+            if state['alarm_armed']:
+                signal.alarm(0)
+
+
+if __name__ == '__main__':
+    print(json.dumps(capture(), sort_keys=True))
