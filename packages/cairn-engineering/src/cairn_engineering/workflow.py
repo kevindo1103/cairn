@@ -11,6 +11,7 @@ import time
 from iceflow_harness.common import Refused, canonical, digest, parse_json, safe_rel
 from .contracts import exact, inert, require, seal, sha40, word
 from .topology import overlaps, resolve_role, topology
+from iceflow_harness.coverage import coverage_contract
 
 KINDS={'plan','implement','check','review','integrate','docs','release_handoff'}
 
@@ -23,7 +24,7 @@ def load_workflow(name: str) -> dict:
 
 def validate_workflow(value: dict) -> dict:
     exact(value,{'schema','id','version','steps'},'WORKFLOW_SHAPE')
-    require(value['schema']=='cairn-workflow-v1' and type(value['version']) is int and value['version']==1,'WORKFLOW_VERSION')
+    require(value['schema']=='cairn-workflow-v1' and type(value['version']) is int and value['version'] in {1,2},'WORKFLOW_VERSION')
     word(value['id'])
     steps=value['steps'];require(type(steps) is list and 0<len(steps)<=32,'WORKFLOW_STEP_LIMIT')
     ids=[]
@@ -35,7 +36,14 @@ def validate_workflow(value: dict) -> dict:
         for p in s['paths']:safe_rel(p)
         for c in s['contracts']:word(c)
         require(s['independent_of'] is None or isinstance(s['independent_of'],str),'INDEPENDENCE_INVALID')
-        a=s['acceptance'];exact(a,{'mode','checks'},'STEP_ACCEPTANCE')
+        a=s['acceptance']
+        require(type(a) is dict, 'STEP_ACCEPTANCE')
+        optional={'model_coverage'} if 'model_coverage' in a else set()
+        exact(a,{'mode','checks'} | optional,'STEP_ACCEPTANCE')
+        if optional:
+            coverage_contract(a['model_coverage'])
+            require(s['kind']=='check' and a['mode']=='required_checks' and
+                    {'K04','K04B','K04B_COVERAGE'} <= set(a['checks']), 'COVERAGE_PREREQUISITES_REQUIRED')
         require(a['mode'] in {'artifact','diagnostic','required_checks','independent_review'},'STEP_ACCEPTANCE_MODE')
         require(type(a['checks']) is list and all(isinstance(v,str) for v in a['checks']) and len(set(a['checks']))==len(a['checks']), 'CHECKSET_INVALID')
         require(a['mode']!='required_checks' or bool(a['checks']), 'CHECKSET_EMPTY')
@@ -117,6 +125,10 @@ def project_workflow(workflow: dict, *, bindings: dict, ledger: dict, step_event
                         entry.update(status='BLOCKED',reason='STALE_OR_MISBOUND_STEP_EVIDENCE')
                     elif step['kind']=='check' and proof.get('required_checks')!=step['acceptance']['checks']:
                         entry.update(status='BLOCKED',reason='CHECKSET_MISMATCH')
+                    elif step['acceptance'].get('model_coverage') and (
+                            proof.get('required_model_coverage') != step['acceptance']['model_coverage'] or
+                            proof.get('coverage_result') != 'SATISFIED'):
+                        entry.update(status='BLOCKED',reason='MODEL_COVERAGE_MISMATCH')
                     elif proof.get('step_result') not in {'ACCEPTED','COLLECTED'}:
                         entry.update(status='NEEDS_REWORK',reason='EVIDENCE_NOT_ACCEPTED')
                     elif step['acceptance']['mode']!='diagnostic' and proof['step_result']!='ACCEPTED':

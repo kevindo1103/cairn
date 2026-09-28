@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from .common import Refused, digest, finding, no_symlinks, read_bytes
-from .sourcechecks import model_columns
+from .coverage import inspect_model_scope, scope_findings
 
 
 def check_database(db: Path, models: bytes, classes: list[str], expected_revision: str) -> list[dict]:
@@ -17,7 +17,8 @@ def check_database(db: Path, models: bytes, classes: list[str], expected_revisio
     before = read_bytes(path, 512 * 1024 * 1024)
     if before[:16] != b"SQLite format 3\0":
         raise Refused("DATABASE_FORMAT")
-    expected = model_columns(models, classes)
+    expected, coverage = inspect_model_scope(models, classes)
+    by_table = {item["table"]: item["model"] for item in coverage["resolved"]}
     output = []
     deadline = time.monotonic() + 10
     try:
@@ -27,13 +28,15 @@ def check_database(db: Path, models: bytes, classes: list[str], expected_revisio
             versions = sorted(row[0] for row in con.execute("SELECT version_num FROM alembic_version"))
             revision_ok = versions == [expected_revision]
             output.append(finding("K04", "PASS" if revision_ok else "FAIL",
-                                  "REVISION_MATCH" if revision_ok else "REVISION_MISMATCH"))
+                                  "REVISION_MATCH" if revision_ok else "REVISION_MISMATCH",
+                                  details={"expected_revision": expected_revision, "observed_revisions": versions}))
             for table, columns in expected.items():
                 present = {r[1] for r in con.execute('PRAGMA table_info("' + table + '")')}
                 missing = sorted(set(columns) - present)
                 output.append(finding("K04B", "FAIL" if missing else "PASS",
                                       "MODEL_MIGRATION_MISMATCH" if missing else "MODEL_COLUMNS_PRESENT",
-                                      details={"table": table, "missing_columns": missing,
+                                      details={"model": by_table[table], "table": table, "missing_columns": missing,
+                                               "inspected_column_names": columns,
                                                "inspected_columns": len(columns), "types_constraints_indexes": "NOT_CHECKED",
                                                "database_sha256": digest(before),
                                                "migration_execution_provenance": "CALLER_SUPPLIED_COPY_NOT_ATTESTED"}))
@@ -43,4 +46,5 @@ def check_database(db: Path, models: bytes, classes: list[str], expected_revisio
         raise Refused("DATABASE_CHANGED")
     if any(Path(str(path) + suffix).exists() for suffix in ["-wal", "-shm", "-journal"]):
         raise Refused("DATABASE_CHANGED")
+    output.extend(scope_findings(coverage))
     return output

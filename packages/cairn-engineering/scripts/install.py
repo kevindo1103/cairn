@@ -10,7 +10,7 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument('--root',type=Path,required=True,help='Unpacked coherent distribution')
     p.add_argument('--venv',type=Path,required=True,help='NEW dedicated environment; no overwrite')
-    a=p.parse_args();verify(a.root)
+    a=p.parse_args();checked=verify(a.root)
     v=a.venv.absolute()
     if v.exists():raise SystemExit('Dedicated venv path already exists; not modifying it')
     for part in (v,*v.parents):
@@ -21,7 +21,11 @@ def main():
             raise SystemExit('Linked/reparse venv path refused')
     subprocess.run([sys.executable,'-m','venv',str(v)],check=True,timeout=120)
     python=v/('Scripts/python.exe' if sys.platform=='win32' else 'bin/python')
-    wheels=[str(a.root/'dist'/name) for name in ('iceflow_harness-0.1.3-py3-none-any.whl','cairn_engineering-0.1.0-py3-none-any.whl')]
+    # The verified project metadata, not a second hardcoded version table,
+    # determines the wheel filenames installed by this distribution.
+    wheels=[str(a.root/'dist'/
+        (item['package'].replace('-', '_')+'-'+item['version']+'-py3-none-any.whl'))
+        for item in checked['packages']]
     subprocess.run([str(python),'-m','pip','install',*wheels],check=True,timeout=300)
     subprocess.run([str(python),'-m','pip','check'],check=True,timeout=30)
     print('Installed to dedicated venv only. No Cairn/ERP live configuration changed.')

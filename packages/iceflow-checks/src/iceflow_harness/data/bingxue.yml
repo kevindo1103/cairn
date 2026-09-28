@@ -8,7 +8,7 @@ ref: HEAD
 max_api_reads: 20
 api_deadline_seconds: 60
 model_path: backend/models.py
-model_classes: [InventoryMovement]
+model_classes: [InventoryMovement, WarehouseStock]
 migration_dir: backend/alembic/versions
 canonical_router: AGENTS.md
 compatibility_router: CLAUDE.md

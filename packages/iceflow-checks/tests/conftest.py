@@ -16,7 +16,7 @@ def repo(tmp_path):
     paths = {
         'AGENTS.md': '# Canonical router\n',
         'CLAUDE.md': '# Legacy instructions\n',
-        'backend/models.py': 'from sqlalchemy import Column, Integer, String\nclass InventoryMovement(Base):\n    __tablename__="inventory_movements"\n    id=Column(Integer)\n    inventory_tenant_ref=Column(String)\n',
+        'backend/models.py': 'from sqlalchemy import Column, Integer, String\nclass InventoryMovement(Base):\n    __tablename__="inventory_movements"\n    id=Column(Integer)\n    inventory_tenant_ref=Column(String)\nclass WarehouseStock(Base):\n    __tablename__="warehouse_stocks"\n    id=Column(Integer)\n',
         'backend/alembic/versions/m1.py': 'revision="m1"\ndown_revision=None\n',
         'backend/requirements.txt': 'alembic\n',
         '.github/workflows/ci.yml': 'name: CI\non: [pull_request]\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps: [{run: "echo ok"}]\n',

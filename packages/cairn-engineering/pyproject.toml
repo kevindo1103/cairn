@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cairn-engineering"
-version = "0.1.0"
+version = "0.1.1"
 description = "Topology workflows, read-only task reconciliation and an Iceflow evidence bridge for Cairn"
 requires-python = ">=3.11"
-dependencies = ["iceflow-harness==0.1.3"]
+dependencies = ["iceflow-harness==0.1.4"]
 readme = "README.md"
 
 [project.optional-dependencies]

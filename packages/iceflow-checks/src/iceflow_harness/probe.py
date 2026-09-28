@@ -11,7 +11,8 @@ from importlib.resources import files
 from pathlib import Path
 
 from .common import Refused, finding, outside, parse_json, write_new
-from .sourcechecks import migration_graph, model_columns
+from .sourcechecks import migration_graph
+from .coverage import inspect_model_scope, scope_findings
 from .probe_protocol import validate_result
 
 
@@ -56,7 +57,10 @@ def docker_command(image: str, source: Path, name: str) -> list[str]:
 
 
 def run_probe(view, cfg: dict, image: str) -> list[dict]:
-    expected = model_columns(view.read(cfg["model_path"]), cfg["model_classes"])
+    expected, coverage = inspect_model_scope(view.read(cfg["model_path"]), cfg["model_classes"])
+    if coverage["unsupported"]:
+        return scope_findings(coverage)  # Refuse unsupported source before executing it.
+    by_table = {item["table"]: item["model"] for item in coverage["resolved"]}
     migration_paths = [p for p in view.entries if p.startswith(cfg["migration_dir"] + "/") and p.endswith(".py")]
     graph = migration_graph({p: view.read(p) for p in migration_paths})
     env = {k: v for k, v in os.environ.items() if k not in {"GH_TOKEN", "GITHUB_TOKEN"}}
@@ -100,7 +104,9 @@ def run_probe(view, cfg: dict, image: str) -> list[dict]:
                                      "host_database_access": False, "authority": "NONE"})]
         if not isinstance(value.get("tables"), dict) or value.get("revisions") != graph["heads"]:
             raise Refused("PROBE_REVISION_MISMATCH")
-        output = []
+        output = [finding("K04", "PASS", "REVISION_MATCH",
+                          details={"expected_revisions": graph["heads"],
+                                   "observed_revisions": value["revisions"]})]
         for table, expected_columns in expected.items():
             actual = value["tables"].get(table, [])
             if not isinstance(actual, list) or not all(isinstance(x, str) for x in actual):
@@ -108,10 +114,12 @@ def run_probe(view, cfg: dict, image: str) -> list[dict]:
             missing = sorted(set(expected_columns) - set(actual))
             output.append(finding("K04B", "FAIL" if missing else "PASS",
                                   "MODEL_MIGRATION_MISMATCH" if missing else "EMPTY_DB_MIGRATION_COLUMNS_PRESENT",
-                                  details={"table": table, "missing_columns": missing, "image": image,
+                                  details={"model": by_table[table], "table": table, "missing_columns": missing,
+                                           "inspected_column_names": expected_columns, "image": image,
                                            "source_sha": view.sha, "revisions": graph["heads"],
                                            "host_database_access": False, "authority": "NONE",
                                            "source_code_executed_in_disposable_container": True,
                                            "types_constraints_indexes": "NOT_CHECKED",
                                            "adversarial_source_attestation": "NOT_PROVEN"}))
+        output.extend(scope_findings(coverage))
         return output

@@ -1,4 +1,4 @@
-# Iceflow Checks 0.1.3 — Cairn package for mechanical verification
+# Iceflow Checks 0.1.4 — Cairn package for mechanical verification
 
 Imported from the reviewed `iceflow-harness 0.1.2` source into Cairn issue #21.
 The existing wheel name and CLI stay `iceflow-harness` for compatibility. This is
@@ -49,3 +49,23 @@ The coherent distribution's verifier is
 Source/runtime/tests are reused from v0.1.2; old validation files are not copied
 as evidence for this version. New exact test and delivery receipts are at the
 coherent distribution root. ERP production/CI/ledger are never changed by install.
+
+## PR #22 review corrections (0.1.4)
+
+The default Bingxue profile selects **InventoryMovement and WarehouseStock**.
+This is an explicit two-model, direct-column contract, not full-schema discovery.
+The Cairn inventory workflow requires K04 revision matching and K04B for both
+models plus K04B_COVERAGE; native P01–P16 remain separate requirements. A custom
+narrower local check is permitted but cannot satisfy that broader workflow.
+
+K04B_COVERAGE reports resolved model/table/column names, unsupported selected
+models and excluded top-level class declarations in the inspected source file.
+It does not discover models in other files or certify type/FK/index/constraints.
+Class-level conditionals/loops/try/with/match in a selected model are currently
+unsupported: return BLOCKED rather than silently ignore potential declarations.
+Normal method bodies are not treated as class-level declarations. Inheritance,
+mixins and dynamic names retain their existing refusal behavior.
+
+`schema-probe` now emits K04 when the sandbox DB revision matches the graph head,
+alongside physical column coverage. Native migration execution remains a separate
+qualification; unit tests and constructed SQLite copies are not ERP migration proof.

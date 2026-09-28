@@ -1,8 +1,9 @@
-# Cairn Engineering 0.1.0 — implementation for issue #21
+# Cairn Engineering 0.1.1 — implementation for issue #21
 
 Cairn remains the only coordination framework. This package adds **topology-aware
 workflow projections, a resume/reconcile observer, and a typed Iceflow evidence
-bridge**. Iceflow Checks 0.1.3 contains the mechanical checks and fixes F1/F2/F3.
+bridge**. Iceflow Checks 0.1.4 retains the F1/F2/F3 fixes and adds the four
+source/contract corrections from PR #22 review 5876863593.
 There is no second task queue, policy database, principal registry or agent model.
 
 **Code implemented, live activation NOT performed.** This is not an autonomous
@@ -20,7 +21,7 @@ directory together. Dependencies may need an index on first installation.
 
 ```powershell
 py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install .\dist\iceflow_harness-0.1.3-py3-none-any.whl .\dist\cairn_engineering-0.1.0-py3-none-any.whl
+.\.venv\Scripts\python.exe -m pip install .\dist\iceflow_harness-0.1.4-py3-none-any.whl .\dist\cairn_engineering-0.1.1-py3-none-any.whl
 .\.venv\Scripts\python.exe -m pip check
 .\.venv\Scripts\cairn-engineering.exe demo --out .\demo-run
 .\.venv\Scripts\cairn-engineering.exe init --repo C:\Projects\bingxue-erp --out .\bingxue-config
@@ -104,6 +105,31 @@ human approval. The projection may describe an observed ACCEPTED step, but it
 never supplies runtime authority. Check steps also require the exact configured
 check set; diagnostic COLLECTED must not satisfy a required-check step.
 
+Registry role names are the existing Adapter taxonomy, not display labels. Dev
+routes require canonical lowercase `worker`; the QC dev route accepts `QC` or
+`worker`. The single-owner Designer route uses canonical `Lead`, without adding
+an authority role. Unknown aliases such as `Dev`, `Worker` and `Designer` are not
+migrated or inferred. Regression tests invoke the actual sibling Adapter
+`validate_entries()` before resolving/resuming a synthetic worker. This pure
+source compatibility test constructs no Store and proves no host identity.
+
+Inventory workflow definition **version 2** binds the deliberately bounded
+`bingxue-movement-stock-v1` direct-column presence contract:
+`InventoryMovement → inventory_movements` and `WarehouseStock → warehouse_stocks`.
+K04 (revision), K04B (columns for both models), and K04B_COVERAGE (checked,
+excluded and unsupported selection) must pass, alongside native P01–P16. A
+Movement-only report cannot satisfy this contract even if all its reported
+checks pass. Other inventory models/tables and source files, type/FK/index and
+constraints are NOT covered; this is not full ERP schema acceptance. Unknown
+class-level conditional/loop/try declarations block the selected model instead
+of dropping columns. Top-level excluded declarations are reported as NOT_SELECTED,
+not silently certified or automatically executed.
+
+Changing the definition or checker/config digest invalidates older bindings;
+there is no automatic live checkpoint/grant/registry update. The bridge qualifies
+0.1.4 reports, not stale 0.1.3 artifacts. Unrelated diagnostics do not become a
+global veto for every workflow; only that step's explicit prerequisites apply.
+
 The Inventory template keeps native P01–P16 as required evidence; a source `scan`
 cannot manufacture them. Release workflows stop at `release_handoff`; no code
 here dispatches deployment. Change templates only through review; their digest
@@ -113,7 +139,7 @@ ERP ownership, not blindly copied from a template.
 ## Checks → evidence → existing Cairn
 
 `bridge --binding task.json --report report.json --report-sha256 <FILE_SHA256>`
-checks actual current local HEAD/tree/dirty state, report version 0.1.3,
+checks actual current local HEAD/tree/dirty state, report version 0.1.4,
 configuration hash, step/workflow identity, self-digest, physical file digest,
 freshness, counts, required check statuses and committed-tree coverage. It emits
 an immutable receipt; it does not complete an event.
@@ -153,3 +179,5 @@ This source addition addresses W1 and the W2/W3 observer/contract slice. It does
 not silently activate W6 or claim the complete autonomous fleet is done. Core
 schema migration/PM succession stay in #15/#16/#17; host/broker work stays in #20.
 ERP bugfix/G1 and existing P01–P16 grants do not depend on this package.
+
+Review response and focused acceptance limits: `REVIEW_5876863593.md`.

@@ -218,7 +218,16 @@ def model_columns(data: bytes, class_names: list[str]) -> dict[str, list[str]]:
     for cls in tree.body:
         if not isinstance(cls, ast.ClassDef) or cls.name not in class_names:
             continue
+        if cls.name in found:
+            raise Refused("MODEL_CLASS_AMBIGUOUS")
         found.add(cls.name)
+        # Class-level control flow can add/rebind/delete a mapped column (even
+        # `if True`). Do not silently omit it. Method bodies are a different
+        # scope and are not rejected here; declared_attr/mixin guards stay below.
+        controls = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With,
+                    ast.AsyncWith, ast.Try, ast.TryStar, ast.Match)
+        if any(isinstance(node, controls) for node in cls.body):
+            raise Refused("MODEL_CONDITIONAL_DECLARATION_UNSUPPORTED")
         fields = assignments(cls.body)
         try:
             table = ast.literal_eval(fields["__tablename__"])
@@ -340,11 +349,16 @@ def scan(view, cfg: dict) -> list[dict]:
                                 path=compatibility))
     try:
         graph = migration_graph({p: view.read(p) for p in migrations})
-        columns = model_columns(view.read(cfg["model_path"]), cfg["model_classes"])
         findings.append(finding("K04_GRAPH", "PASS", "SINGLE_SOURCE_MIGRATION_HEAD", details=graph))
-        findings.append(finding("K04B", "NOT_RUN", "MIGRATED_DATABASE_REQUIRED", details={"model_columns": columns}))
     except Refused as exc:
         findings.append(finding("K04_GRAPH", "BLOCKED", exc.code))
+    try:
+        from .coverage import inspect_model_scope, scope_findings
+        columns, coverage = inspect_model_scope(view.read(cfg["model_path"]), cfg["model_classes"])
+        findings.append(finding("K04B", "NOT_RUN", "MIGRATED_DATABASE_REQUIRED", details={"model_columns": columns}))
+        findings.extend(scope_findings(coverage))
+    except Refused as exc:
+        findings.append(finding("K04B", "BLOCKED", exc.code))
     audio_wf = ".github/workflows/release-v2-ci.yml"
     if cfg["audio_required"] and audio_wf in view.entries:
         try:

@@ -31,7 +31,7 @@ def inputs(now: float = 2000000000.0):
                          'base':b['base_sha'],'head':b['head_sha'],'revision':1}],
         'recipients':[{'task':b['task_id'],'busy':0,'active_event':b['event_id']}],
         'registry':{'revision':1,'entries':[{'task_id':b['task_id'],'session_id':b['session_id'],
-            'generation':1,'role':'Dev','state':'active','scopes':[b['scope']]}]},
+            'generation':1,'role':'worker','state':'active','scopes':[b['scope']]}]},
         'observed_at_unix':now,'origin':'SYNTHETIC_ONLY','authority':'NONE','recovery_executed':False})
     local={'head_sha':b['head_sha'],'tree_sha':b['tree_sha'],'dirty':False,'branch':'synthetic',
            'index_sha256':'e'*64,'changed_paths_digest':'f'*64,'observed_at_unix':now}

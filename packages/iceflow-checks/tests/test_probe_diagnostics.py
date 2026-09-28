@@ -191,10 +191,12 @@ def test_runner_still_computes_column_parity(repo, tmp_path, monkeypatch, column
     cfg = default_config(repo[0], tmp_path / 'reports')
     view.preload(list(view.entries))
     fake_transport(monkeypatch, {'schema': probe_protocol.SCHEMA, 'status': 'MIGRATED',
-                                'revisions': ['m1'], 'tables': {'inventory_movements': columns}})
+                                'revisions': ['m1'], 'tables': {'inventory_movements': columns, 'warehouse_stocks': ['id']}})
     result = run_probe(view, cfg, 'sha256:' + 'a' * 64)
-    assert result[0]['status'] == status
-    assert result[0]['details']['adversarial_source_attestation'] == 'NOT_PROVEN'
+    assert result[0]['check'] == 'K04' and result[0]['status'] == 'PASS'
+    row = next(f for f in result if f['check'] == 'K04B' and f['details']['table'] == 'inventory_movements')
+    assert row['status'] == status
+    assert row['details']['adversarial_source_attestation'] == 'NOT_PROVEN'
 
 
 def test_runner_unknown_state_is_invalid_not_migration_failure(repo, tmp_path, monkeypatch):

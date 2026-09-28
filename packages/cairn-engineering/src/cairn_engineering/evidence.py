@@ -11,6 +11,7 @@ from pathlib import Path
 from iceflow_harness.common import Refused, canonical, digest, parse_json, read_bytes, write_new
 from .contracts import exact, inert, require, seal, sha256, verify_digest, timestamp, validate_binding
 from .workflow import validate_workflow
+from iceflow_harness.coverage import coverage_satisfied
 
 _ALLOWED_STATUS={'PASS','FAIL','WARN','NOT_RUN','BLOCKED','INFO'}
 
@@ -23,7 +24,7 @@ def validate_report(raw: bytes, *, file_sha256: str, binding: dict, workflow: di
     require(digest(raw)==file_sha256,'EVIDENCE_FILE_DIGEST_MISMATCH')
     require(len(raw)<=8*1024*1024,'EVIDENCE_LIMIT')
     report=parse_json(raw);require(type(report) is dict,'REPORT_SHAPE')
-    require(report.get('schema')=='iceflow-harness-report-v1' and report.get('version')=='0.1.3','CHECKER_VERSION_UNQUALIFIED')
+    require(report.get('schema')=='iceflow-harness-report-v1' and report.get('version')=='0.1.4','CHECKER_VERSION_UNQUALIFIED')
     verify_digest(report,'report_digest_sha256')
     require(report.get('authority')=='NONE' and report.get('effective_permissions')==[] and
             report.get('release_ready')=='NOT_EVALUATED' and report.get('mode')=='observe','REPORT_AUTHORITY_INVALID')
@@ -48,6 +49,9 @@ def validate_report(raw: bytes, *, file_sha256: str, binding: dict, workflow: di
     require(report.get('outcome')==outcome,'REPORT_OUTCOME_MISMATCH')
     selected={k:[f for f in findings if f['check']==k] for k in step['acceptance']['checks']}
     accepted=bool(selected) and all(rows and all(f['status']=='PASS' for f in rows) for rows in selected.values())
+    contract=step['acceptance'].get('model_coverage')
+    coverage_ok=coverage_satisfied(findings,contract) if contract else True
+    accepted=accepted and coverage_ok
     # Collecting diagnostics may finish with findings; it must not advance a pass gate.
     result='COLLECTED' if step['acceptance']['mode']=='diagnostic' else 'ACCEPTED' if accepted else 'REJECTED'
     return seal(inert('cairn-check-evidence-v1',event_id=binding['event_id'],task_id=binding['task_id'],
@@ -57,6 +61,8 @@ def validate_report(raw: bytes, *, file_sha256: str, binding: dict, workflow: di
         tree_sha=binding['tree_sha'],checker_version=report['version'],config_sha256=config_sha256,
         report_file_sha256=file_sha256,report_internal_sha256=report['report_digest_sha256'],
         step_result=result,check_outcome=outcome,required_checks=list(selected),
+        required_model_coverage=contract,
+        coverage_result=('SATISFIED' if coverage_ok else 'MISSING_OR_MISMATCHED') if contract else 'NOT_REQUIRED',
         report_ref='artifact://sha256/'+file_sha256,
         report_created_at=report['created_at'],provenance='REPORT_BYTES_NOT_HOST_IDENTITY'))
 

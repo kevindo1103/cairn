@@ -43,7 +43,7 @@ def repo(tmp_path):
     (path/'.github/workflows/test.yml').write_bytes(b'on: [pull_request]\njobs:\n  tests:\n    runs-on: ubuntu-latest\n    steps: [{run: "echo synthetic"}]\n')
     (path/'backend/alembic/versions').mkdir(parents=True)
     (path/'backend/alembic/versions/m1.py').write_bytes(b"revision='m1'\ndown_revision=None\n")
-    (path/'backend/models.py').write_bytes(b"from sqlalchemy import Column,Integer\nclass InventoryMovement(Base):\n    __tablename__='inventory_movements'\n    id=Column(Integer,primary_key=True)\n")
+    (path/'backend/models.py').write_bytes(b"from sqlalchemy import Column,Integer\nclass InventoryMovement(Base):\n    __tablename__='inventory_movements'\n    id=Column(Integer,primary_key=True)\nclass WarehouseStock(Base):\n    __tablename__='warehouse_stocks'\n    id=Column(Integer,primary_key=True)\n")
     (path/'AGENTS.md').write_bytes(b'Read this router.\n');(path/'CLAUDE.md').write_bytes(b'See AGENTS.md\n')
     (path/'backend/tests').mkdir();(path/'backend/tests/test_example.py').write_bytes(b'def test_synthetic():\n    assert True\n')
     git('add','.');git('commit','-m','synthetic fixture')
