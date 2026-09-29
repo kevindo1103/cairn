@@ -1,0 +1,30 @@
+{
+  "schema_version": "decision-v0.3",
+  "decision_id": "fixture:D2",
+  "kind": "GRANT",
+  "subject": {
+    "repository_id": 1,
+    "subject_type": "COMMIT",
+    "ref": "fixture:task-A",
+    "head_sha": "1111111111111111111111111111111111111111"
+  },
+  "scope": {
+    "path_match": "EXACT",
+    "paths": [
+      "fixture/src/a.py"
+    ],
+    "operations": [
+      "edit",
+      "test"
+    ]
+  },
+  "denies": [
+    "merge",
+    "deploy",
+    "production_db_write",
+    "force_push"
+  ],
+  "supersedes": [],
+  "issued_at": "2026-09-28T00:00:00Z",
+  "expires_at": "2026-09-29T00:00:00Z"
+}

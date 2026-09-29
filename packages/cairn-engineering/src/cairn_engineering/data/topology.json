@@ -1,0 +1,162 @@
+{
+  "schema": "cairn-topology-v1",
+  "profile": "bingxue",
+  "source_revision": "3302578077558624396b027c9eae886f90eddcaa",
+  "roles": {
+    "human_pm": {
+      "registry_roles": [
+        "PM"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": null
+    },
+    "pm_assistant": {
+      "registry_roles": [
+        "Lead"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "human_pm"
+    },
+    "domain_lead": {
+      "registry_roles": [
+        "Lead"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "pm_assistant"
+    },
+    "backend_lead": {
+      "registry_roles": [
+        "Lead"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "pm_assistant"
+    },
+    "backend_dev": {
+      "registry_roles": [
+        "worker"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "backend_lead"
+    },
+    "frontend_lead": {
+      "registry_roles": [
+        "Lead"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "pm_assistant"
+    },
+    "frontend_dev": {
+      "registry_roles": [
+        "worker"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "frontend_lead"
+    },
+    "qc_lead": {
+      "registry_roles": [
+        "QC",
+        "Lead"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "pm_assistant"
+    },
+    "qc_dev": {
+      "registry_roles": [
+        "QC",
+        "worker"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "qc_lead"
+    },
+    "infra": {
+      "registry_roles": [
+        "Infra"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "pm_assistant"
+    },
+    "docs": {
+      "registry_roles": [
+        "Docs"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "pm_assistant"
+    },
+    "designer": {
+      "registry_roles": [
+        "Lead"
+      ],
+      "identity": "FROM_EXISTING_CAIRN_REGISTRY",
+      "assigned_by": "pm_assistant"
+    }
+  },
+  "assignment_edges": [
+    [
+      "human_pm",
+      "pm_assistant"
+    ],
+    [
+      "pm_assistant",
+      "domain_lead"
+    ],
+    [
+      "pm_assistant",
+      "backend_lead"
+    ],
+    [
+      "backend_lead",
+      "backend_dev"
+    ],
+    [
+      "pm_assistant",
+      "frontend_lead"
+    ],
+    [
+      "frontend_lead",
+      "frontend_dev"
+    ],
+    [
+      "pm_assistant",
+      "qc_lead"
+    ],
+    [
+      "qc_lead",
+      "qc_dev"
+    ],
+    [
+      "pm_assistant",
+      "infra"
+    ],
+    [
+      "pm_assistant",
+      "docs"
+    ],
+    [
+      "pm_assistant",
+      "designer"
+    ]
+  ],
+  "findings": {
+    "F00": "docs",
+    "K01": "infra",
+    "K02": "qc_lead",
+    "K03": "qc_lead",
+    "K04B": "backend_lead",
+    "K05": "infra",
+    "K05_SOURCE": "infra",
+    "K06": "domain_lead",
+    "K07": "backend_lead",
+    "K08": "frontend_lead"
+  },
+  "scope": "Routing proposal only; no task IDs, account names, grants or auto-spawn",
+  "relay_edges": [
+    [
+      "backend_lead",
+      "qc_lead"
+    ],
+    [
+      "frontend_lead",
+      "qc_lead"
+    ]
+  ]
+}

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cairn-engineering"
+version = "0.1.2"
+description = "Topology workflows, read-only task reconciliation and an Iceflow evidence bridge for Cairn"
+requires-python = ">=3.11"
+dependencies = ["iceflow-harness==0.1.5"]
+readme = "README.md"
+
+[project.optional-dependencies]
+test = ["pytest==9.0.2"]
+
+[project.scripts]
+cairn-engineering = "cairn_engineering.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cairn_engineering = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"

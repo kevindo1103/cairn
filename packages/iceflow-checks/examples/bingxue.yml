@@ -1,0 +1,15 @@
+version: 1
+mode: observe
+repository: d2kyle113/bingxue-erp
+repository_id: 1222526625
+repo_path: ../bingxue-erp
+output_dir: ./reports
+ref: HEAD
+max_api_reads: 20
+api_deadline_seconds: 60
+model_path: backend/models.py
+model_classes: [InventoryMovement, WarehouseStock, InventoryEpoch, InventoryManifest]
+migration_dir: backend/alembic/versions
+canonical_router: AGENTS.md
+compatibility_router: CLAUDE.md
+audio_required: true

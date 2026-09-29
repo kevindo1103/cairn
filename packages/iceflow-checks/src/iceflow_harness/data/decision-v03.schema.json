@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decision payload V0.3 — shape only, not authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decision_id",
+    "kind",
+    "subject",
+    "scope",
+    "denies",
+    "supersedes",
+    "issued_at",
+    "expires_at"
+  ],
+  "$defs": {
+    "actions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "read",
+          "edit",
+          "test",
+          "publish_branch",
+          "publish_metadata",
+          "merge",
+          "deploy",
+          "production_db_write",
+          "force_push"
+        ]
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path_match",
+        "paths",
+        "operations"
+      ],
+      "properties": {
+        "path_match": {
+          "enum": [
+            "EXACT",
+            "GLOB"
+          ],
+          "description": "EXACT = literal repo-relative paths. GLOB = gitignore-style patterns (*, **, ?); evaluator must canonicalize before matching."
+        },
+        "paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\\\)(?!.*(^|/)\\.\\.(/|$)).+$"
+          }
+        },
+        "operations": {
+          "$ref": "#/$defs/actions"
+        }
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "decision-v0.3"
+    },
+    "decision_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "kind": {
+      "enum": [
+        "PROPOSAL",
+        "GRANT",
+        "HOLD",
+        "AMEND",
+        "REVOKE",
+        "RATIFY"
+      ],
+      "description": "GRANT: scope.operations are allowed. HOLD: scope.operations are paused until a later GRANT/AMEND/REVOKE of this decision. AMEND: replaces the listed superseded scope with this scope. REVOKE: withdraws the listed superseded scope. RATIFY: adopts a policy document; carries no operations. PROPOSAL: carries no effect."
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "subject_type",
+        "ref"
+      ],
+      "properties": {
+        "repository_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "subject_type": {
+          "enum": [
+            "COMMIT",
+            "WORK_ITEM",
+            "POLICY"
+          ],
+          "description": "COMMIT: bound to one head SHA; invalid once head changes. WORK_ITEM: bound to an issue/PR regardless of head. POLICY: a governance document or ownership rule, not a code change."
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Issue/PR number (e.g. 'pr:1708'), or policy name (e.g. 'policy:router')."
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "policy_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "blob_sha1"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "blob_sha1": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          }
+        }
+      }
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "denies": {
+      "$ref": "#/$defs/actions"
+    },
+    "supersedes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decision_id",
+          "content_sha256",
+          "scope"
+        ],
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content_sha256": {
+            "$ref": "#/$defs/digest"
+          },
+          "scope": {
+            "$ref": "#/$defs/scope"
+          }
+        }
+      }
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "null = in force until superseded or revoked. Allowed only for HOLD, REVOKE and RATIFY."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "subject": {
+            "properties": {
+              "subject_type": {
+                "const": "COMMIT"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "subject": {
+            "required": [
+              "head_sha"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "subject": {
+            "properties": {
+              "subject_type": {
+                "const": "POLICY"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "subject": {
+            "not": {
+              "required": [
+                "head_sha"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "PROPOSAL",
+              "RATIFY"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "properties": {
+              "operations": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "GRANT",
+              "HOLD",
+              "AMEND"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "properties": {
+              "operations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "AMEND",
+              "REVOKE"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "supersedes": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "RATIFY"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "subject": {
+            "required": [
+              "policy_ref"
+            ],
+            "properties": {
+              "subject_type": {
+                "const": "POLICY"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "PROPOSAL",
+              "GRANT",
+              "AMEND"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "expires_at": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "V0.3: 'grants' removed; scope.operations is the single action list and its meaning depends on kind. Duplicate JSON keys must be rejected before schema validation. Schema does NOT validate authenticated actor, role, clock, authority, historical supersession or effective side-effect permission; the existing trusted evaluator must. Examples are synthetic/non-authoritative."
+}
