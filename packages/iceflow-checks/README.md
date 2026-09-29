@@ -1,4 +1,4 @@
-# Iceflow Checks 0.1.4 — Cairn package for mechanical verification
+# Iceflow Checks 0.1.5 — Cairn package for mechanical verification
 
 Imported from the reviewed `iceflow-harness 0.1.2` source into Cairn issue #21.
 The existing wheel name and CLI stay `iceflow-harness` for compatibility. This is
@@ -50,11 +50,11 @@ Source/runtime/tests are reused from v0.1.2; old validation files are not copied
 as evidence for this version. New exact test and delivery receipts are at the
 coherent distribution root. ERP production/CI/ledger are never changed by install.
 
-## PR #22 review corrections (0.1.4)
+## PR #22 review corrections (0.1.4, extended by 0.1.5)
 
-The default Bingxue profile selects **InventoryMovement and WarehouseStock**.
-This is an explicit two-model, direct-column contract, not full-schema discovery.
-The Cairn inventory workflow requires K04 revision matching and K04B for both
+The default Bingxue profile selects **InventoryMovement, WarehouseStock, InventoryEpoch and InventoryManifest**.
+This is an explicit four-model, direct-column contract, not full-schema discovery.
+The Cairn inventory workflow requires K04 revision matching and K04B for all four
 models plus K04B_COVERAGE; native P01–P16 remain separate requirements. A custom
 narrower local check is permitted but cannot satisfy that broader workflow.
 
@@ -69,3 +69,11 @@ mixins and dynamic names retain their existing refusal behavior.
 `schema-probe` now emits K04 when the sandbox DB revision matches the graph head,
 alongside physical column coverage. Native migration execution remains a separate
 qualification; unit tests and constructed SQLite copies are not ERP migration proof.
+
+The S1b expansion uses coverage contract `bingxue-movement-stock-v2`, replacing
+the two-model v1 requirement only through a new package/workflow version. Existing
+configuration is never rewritten automatically. Narrow profiles remain valid
+for diagnostic checks, but cannot satisfy the four-model Inventory workflow.
+The regression fixtures are synthetic m58-shaped copies, not historical ERP
+seed/upgrade executions. All other models and type/FK/index checks stay outside
+this bounded contract and remain explicitly reported.

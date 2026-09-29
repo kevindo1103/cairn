@@ -2,7 +2,7 @@
 
 One profile contract is shared by workflow acceptance and report validation.
 Other inventory models, other source files, constraints and runtime mutations
-remain outside this intentionally bounded movement/stock presence check.
+remain outside this intentionally bounded movement/stock/epoch/manifest presence check.
 """
 from __future__ import annotations
 
@@ -13,9 +13,13 @@ from collections import Counter
 from .common import Refused, digest, finding
 from .sourcechecks import assignments, model_columns, tree_of
 
-INVENTORY_COVERAGE_ID = "bingxue-movement-stock-v1"
+# v2 expands the former two-model v1 contract to the four S1b models. Old
+# evidence/configuration is not silently upgraded into this wider claim.
+INVENTORY_COVERAGE_ID = "bingxue-movement-stock-v2"
 _INVENTORY_MODELS = {"InventoryMovement": "inventory_movements",
-                     "WarehouseStock": "warehouse_stocks"}
+                     "WarehouseStock": "warehouse_stocks",
+                     "InventoryEpoch": "inventory_epochs",
+                     "InventoryManifest": "inventory_manifests"}
 COVERAGE_SCOPE = "CONFIGURED_DIRECT_COLUMNS_ONLY"
 
 

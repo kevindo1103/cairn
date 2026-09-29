@@ -207,7 +207,7 @@
   "inventory-migration": {
     "schema": "cairn-workflow-v1",
     "id": "inventory-migration",
-    "version": 2,
+    "version": 3,
     "steps": [
       {
         "id": "scope",
@@ -274,7 +274,7 @@
             "P15",
             "P16"
           ],
-          "model_coverage": "bingxue-movement-stock-v1"
+          "model_coverage": "bingxue-movement-stock-v2"
         }
       },
       {

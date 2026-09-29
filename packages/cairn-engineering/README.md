@@ -1,8 +1,8 @@
-# Cairn Engineering 0.1.1 — implementation for issue #21
+# Cairn Engineering 0.1.2 — implementation for issue #21
 
 Cairn remains the only coordination framework. This package adds **topology-aware
 workflow projections, a resume/reconcile observer, and a typed Iceflow evidence
-bridge**. Iceflow Checks 0.1.4 retains the F1/F2/F3 fixes and adds the four
+bridge**. Iceflow Checks 0.1.5 retains the F1/F2/F3 fixes and adds the four
 source/contract corrections from PR #22 review 5876863593.
 There is no second task queue, policy database, principal registry or agent model.
 
@@ -21,7 +21,7 @@ directory together. Dependencies may need an index on first installation.
 
 ```powershell
 py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install .\dist\iceflow_harness-0.1.4-py3-none-any.whl .\dist\cairn_engineering-0.1.1-py3-none-any.whl
+.\.venv\Scripts\python.exe -m pip install .\dist\iceflow_harness-0.1.5-py3-none-any.whl .\dist\cairn_engineering-0.1.2-py3-none-any.whl
 .\.venv\Scripts\python.exe -m pip check
 .\.venv\Scripts\cairn-engineering.exe demo --out .\demo-run
 .\.venv\Scripts\cairn-engineering.exe init --repo C:\Projects\bingxue-erp --out .\bingxue-config
@@ -113,12 +113,13 @@ migrated or inferred. Regression tests invoke the actual sibling Adapter
 `validate_entries()` before resolving/resuming a synthetic worker. This pure
 source compatibility test constructs no Store and proves no host identity.
 
-Inventory workflow definition **version 2** binds the deliberately bounded
-`bingxue-movement-stock-v1` direct-column presence contract:
-`InventoryMovement → inventory_movements` and `WarehouseStock → warehouse_stocks`.
-K04 (revision), K04B (columns for both models), and K04B_COVERAGE (checked,
+Inventory workflow definition **version 3** binds the deliberately bounded
+`bingxue-movement-stock-v2` direct-column presence contract:
+`InventoryMovement → inventory_movements`, `WarehouseStock → warehouse_stocks`,
+`InventoryEpoch → inventory_epochs`, and `InventoryManifest → inventory_manifests`.
+K04 (revision), K04B (columns for all four models), and K04B_COVERAGE (checked,
 excluded and unsupported selection) must pass, alongside native P01–P16. A
-Movement-only report cannot satisfy this contract even if all its reported
+Movement-only or former two-model report cannot satisfy this contract even if all its reported
 checks pass. Other inventory models/tables and source files, type/FK/index and
 constraints are NOT covered; this is not full ERP schema acceptance. Unknown
 class-level conditional/loop/try declarations block the selected model instead
@@ -127,7 +128,7 @@ not silently certified or automatically executed.
 
 Changing the definition or checker/config digest invalidates older bindings;
 there is no automatic live checkpoint/grant/registry update. The bridge qualifies
-0.1.4 reports, not stale 0.1.3 artifacts. Unrelated diagnostics do not become a
+0.1.5 reports, not stale 0.1.4/0.1.3 artifacts. Unrelated diagnostics do not become a
 global veto for every workflow; only that step's explicit prerequisites apply.
 
 The Inventory template keeps native P01–P16 as required evidence; a source `scan`
@@ -139,7 +140,7 @@ ERP ownership, not blindly copied from a template.
 ## Checks → evidence → existing Cairn
 
 `bridge --binding task.json --report report.json --report-sha256 <FILE_SHA256>`
-checks actual current local HEAD/tree/dirty state, report version 0.1.4,
+checks actual current local HEAD/tree/dirty state, report version 0.1.5,
 configuration hash, step/workflow identity, self-digest, physical file digest,
 freshness, counts, required check statuses and committed-tree coverage. It emits
 an immutable receipt; it does not complete an event.
@@ -181,3 +182,17 @@ schema migration/PM succession stay in #15/#16/#17; host/broker work stays in #2
 ERP bugfix/G1 and existing P01–P16 grants do not depend on this package.
 
 Review response and focused acceptance limits: `REVIEW_5876863593.md`.
+
+## Conditional re-review at `8d2ba60`
+
+The user's re-review is retained as reviewer-reported evidence, not new execution
+by the package author. The four-model S1b expansion is `bingxue-movement-stock-v2`
+in workflow definition 3, instead of mutating the meaning of the two-model v1.
+No code updates an existing config, checkpoint, grant or registry. Create a new
+config or explicitly review its four-model selection, then reconcile the changed
+checker/config/workflow digests. Old reduced-scope reports cannot satisfy v2.
+
+Focused tests reproduce the S1b missing-column sets on **synthetic SQLite copies**
+(8 stock, 5 epoch, 1 manifest), plus isolated epoch/manifest failures. Column names
+are pinned to the m60 migration source. This is not a new execution of ERP
+`seed_local.py`, a historical upgrade, native P01-P16, or a host-resume UAT.

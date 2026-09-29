@@ -24,7 +24,7 @@ def validate_report(raw: bytes, *, file_sha256: str, binding: dict, workflow: di
     require(digest(raw)==file_sha256,'EVIDENCE_FILE_DIGEST_MISMATCH')
     require(len(raw)<=8*1024*1024,'EVIDENCE_LIMIT')
     report=parse_json(raw);require(type(report) is dict,'REPORT_SHAPE')
-    require(report.get('schema')=='iceflow-harness-report-v1' and report.get('version')=='0.1.4','CHECKER_VERSION_UNQUALIFIED')
+    require(report.get('schema')=='iceflow-harness-report-v1' and report.get('version')=='0.1.5','CHECKER_VERSION_UNQUALIFIED')
     verify_digest(report,'report_digest_sha256')
     require(report.get('authority')=='NONE' and report.get('effective_permissions')==[] and
             report.get('release_ready')=='NOT_EVALUATED' and report.get('mode')=='observe','REPORT_AUTHORITY_INVALID')

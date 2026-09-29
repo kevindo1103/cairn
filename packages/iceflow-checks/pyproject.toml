@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "iceflow-harness"
-version = "0.1.4"
+version = "0.1.5"
 description = "Read-only engineering checks and evidence harness with a Bingxue profile"
 requires-python = ">=3.11"
 dependencies = ["PyYAML==6.0.3", "jsonschema==4.26.0", "defusedxml==0.7.1"]

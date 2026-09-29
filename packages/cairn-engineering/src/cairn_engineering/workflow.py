@@ -24,7 +24,7 @@ def load_workflow(name: str) -> dict:
 
 def validate_workflow(value: dict) -> dict:
     exact(value,{'schema','id','version','steps'},'WORKFLOW_SHAPE')
-    require(value['schema']=='cairn-workflow-v1' and type(value['version']) is int and value['version'] in {1,2},'WORKFLOW_VERSION')
+    require(value['schema']=='cairn-workflow-v1' and type(value['version']) is int and value['version'] in {1,2,3},'WORKFLOW_VERSION')
     word(value['id'])
     steps=value['steps'];require(type(steps) is list and 0<len(steps)<=32,'WORKFLOW_STEP_LIMIT')
     ids=[]

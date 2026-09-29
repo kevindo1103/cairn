@@ -32,6 +32,12 @@ class WarehouseStock(Base):
     __tablename__ = 'warehouse_stocks'
     id = Column(Integer, primary_key=True)
     inventory_tenant_ref = Column(String)
+class InventoryEpoch(Base):
+    __tablename__ = 'inventory_epochs'
+    id = Column(Integer, primary_key=True)
+class InventoryManifest(Base):
+    __tablename__ = 'inventory_manifests'
+    id = Column(Integer, primary_key=True)
 class InventoryTransaction(Base):
     __tablename__ = 'inventory_transactions'
     id = Column(Integer, primary_key=True)
@@ -108,13 +114,14 @@ def db_copy(tmp_path, *, complete=True):
     suffix = ', inventory_tenant_ref TEXT' if complete else ''
     with closing(sqlite3.connect(db)) as c, c:
         c.executescript("CREATE TABLE alembic_version(version_num TEXT); INSERT INTO alembic_version VALUES ('m1'); "
-                        "CREATE TABLE inventory_movements(id INTEGER); CREATE TABLE warehouse_stocks(id INTEGER"+suffix+");")
+                        "CREATE TABLE inventory_movements(id INTEGER); CREATE TABLE inventory_epochs(id INTEGER); "
+                        "CREATE TABLE inventory_manifests(id INTEGER); CREATE TABLE warehouse_stocks(id INTEGER"+suffix+");")
     return db
 
 
 def schema_findings(tmp_path, *, expected='m1', complete=True, classes=None):
     return check_database(db_copy(tmp_path, complete=complete), MODELS,
-                          classes or ['InventoryMovement', 'WarehouseStock'], expected)
+                          classes or ['InventoryMovement', 'WarehouseStock', 'InventoryEpoch', 'InventoryManifest'], expected)
 
 
 def report_case(findings):
@@ -217,3 +224,34 @@ def test_r4_coverage_contract_cannot_drop_revision_prerequisite():
     w = load_workflow('inventory-migration')
     w['steps'][2]['acceptance']['checks'].remove('K04')
     with pytest.raises(Refused, match='COVERAGE_PREREQUISITES_REQUIRED'): validate_workflow(w)
+
+
+def test_s1b_former_two_model_report_cannot_satisfy_four_model_step(tmp_path):
+    findings = schema_findings(tmp_path, classes=['InventoryMovement', 'WarehouseStock'])
+    assert all(f['status'] == 'PASS' for f in findings)
+    assert evaluate(report_case(findings))['step_result'] == 'REJECTED'
+
+
+@pytest.mark.parametrize('missing_model', ['InventoryEpoch', 'InventoryManifest'])
+def test_s1b_omitted_epoch_or_manifest_never_completes_adapter(tmp_path, missing_model):
+    names = ['InventoryMovement', 'WarehouseStock', 'InventoryEpoch', 'InventoryManifest']
+    names.remove(missing_model)
+    b, w, r = report_case(schema_findings(tmp_path, classes=names))
+    assert r['outcome'] == 'CHECKED_SCOPE_ONLY'
+    calls = []
+    bridge = HostEvidenceBridge(lambda *a: calls.append(a), lambda raw: calls.append(raw),
+                                binding=b, workflow=w, config_sha256='f'*64, clock=lambda:NOW)
+    with pytest.raises(Refused, match='CHECK_NOT_ACCEPTED'):
+        bridge.complete_check(report=canonical(r), report_sha256=digest(canonical(r)), worker_token='synthetic')
+    assert calls == []
+
+
+def test_s1b_inventory_template_binds_four_model_revision_explicitly():
+    w = load_workflow('inventory-migration')
+    assert w['version'] == 3
+    verify = next(s for s in w['steps'] if s['id'] == 'verify')['acceptance']
+    assert verify['model_coverage'] == 'bingxue-movement-stock-v2'
+    assert set(verify['checks']) == {'K04', 'K04B', 'K04B_COVERAGE', *(f'P{i:02d}' for i in range(1,17))}
+    verify['model_coverage'] = 'bingxue-movement-stock-v1'
+    with pytest.raises(Refused, match='MODEL_COVERAGE_CONTRACT_UNKNOWN'):
+        validate_workflow(w)

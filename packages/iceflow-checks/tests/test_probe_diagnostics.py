@@ -191,7 +191,7 @@ def test_runner_still_computes_column_parity(repo, tmp_path, monkeypatch, column
     cfg = default_config(repo[0], tmp_path / 'reports')
     view.preload(list(view.entries))
     fake_transport(monkeypatch, {'schema': probe_protocol.SCHEMA, 'status': 'MIGRATED',
-                                'revisions': ['m1'], 'tables': {'inventory_movements': columns, 'warehouse_stocks': ['id']}})
+                                'revisions': ['m1'], 'tables': {'inventory_movements': columns, 'warehouse_stocks': ['id'], 'inventory_epochs': ['id'], 'inventory_manifests': ['id']}})
     result = run_probe(view, cfg, 'sha256:' + 'a' * 64)
     assert result[0]['check'] == 'K04' and result[0]['status'] == 'PASS'
     row = next(f for f in result if f['check'] == 'K04B' and f['details']['table'] == 'inventory_movements')
